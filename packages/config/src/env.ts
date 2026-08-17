@@ -40,10 +40,25 @@ let cached: Env | undefined;
  * chain shape into this schema via `.extend()` would give the whole object
  * an implicit index signature, which silently widens every field here
  * (including required ones like TELEGRAM_BOT_TOKEN) to `T | undefined`.
+ *
+ * Every route that touches this app's own data calls loadEnv() — not just
+ * the routes that use a given field — so a single blank var (e.g.
+ * TELEGRAM_BOT_TOKEN in a fresh .env.local) breaks unrelated pages too. The
+ * error thrown here is deliberately actionable (names every failing var and
+ * points at .env.example), not a raw ZodError, since letting that surface
+ * as an unhandled 500 leaves no clue it's a config problem at all.
  */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (cached) return cached;
-  cached = envSchema.parse(source);
+  const result = envSchema.safeParse(source);
+  if (!result.success) {
+    const issues = result.error.issues.map((issue) => `  - ${issue.path.join(".")}: ${issue.message}`).join("\n");
+    throw new Error(
+      `Invalid or missing environment variables:\n${issues}\n\n` +
+        `Copy .env.example to .env.local (or .env) and fill in every required value, then restart the dev server.`,
+    );
+  }
+  cached = result.data;
   return cached;
 }
 

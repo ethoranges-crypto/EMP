@@ -11,8 +11,9 @@ EMP ("End-user Messaging Protocol") — a two-sided platform. Users link a walle
 3. **Snapshot at approval.** When a campaign is approved, snapshot the recipient set and lock cost = `flat_cost_per_user × snapshot_count`. Send to the snapshot.
 4. **No hardcoded secrets.** Bot token, RPC keys, treasury addresses, DB creds → env/secret store only.
 5. **Config-driven chains.** Supported chains come from config so new EVM chains (and later non-EVM) add without code changes. Never hardcode a single chain assumption.
-6. **MVP first.** Build the full core loop end-to-end (see SPEC §12). Stub Phase-2 items behind clean interfaces; do not implement them.
-7. **Test the two things that must not break:** payment verification and the privacy boundary.
+6. **One human, one account (anti-sybil).** Enforce a strict 1:1:1 mapping — one wallet ↔ one account ↔ one Telegram account. `chat_id` and `primary_wallet` are both globally unique; a `chat_id` can never bind to more than one account. Audiences are drawn only from accounts with a *current verified* Telegram link. This is what protocols pay for; treat it as a hard invariant. See SPEC §7.5.
+7. **MVP first.** Build the full core loop end-to-end (see SPEC §12). Stub Phase-2 items behind clean interfaces; do not implement them.
+8. **Test the three things that must not break:** payment verification, the privacy boundary, and account uniqueness.
 
 ## Telegram realities (don't design around wishes)
 - A bot **cannot** DM a raw @handle. Linking = user opens the EMP bot → one-time code binds their `chat_id`. Store `chat_id`, never the handle.

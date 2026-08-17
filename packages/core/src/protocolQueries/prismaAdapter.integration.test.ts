@@ -1,0 +1,182 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { prisma } from "@emp/db";
+import { createPrismaProtocolQueryStore } from "./prismaAdapter.js";
+import type { ProtocolQueryPort } from "./ports.js";
+import { assertNoForbiddenKeys, assertNoLeakedValues } from "../testUtils/privacyAssertions.js";
+
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL is required for the integration lane. Start Postgres " +
+      "(docker compose up -d postgres, or a local instance) and run via " +
+      "`pnpm test:integration` — see packages/core/vitest.integration.config.ts.",
+  );
+}
+
+/**
+ * Real, non-null secret values — not the unit test's synthetic fakes. A
+ * forbidden-key scan over a null column passes whether or not the
+ * protection works; these exist so an actual leak has something real to
+ * leak, and so assertNoLeakedValues has something to look for.
+ */
+const REAL_WALLET = "0xabcdef0123456789abcdef0123456789abcdef01";
+const REAL_CHAT_ID = "999888777";
+const REAL_PAYER_ADDRESS = "0x1111222233334444555566667777888899990000";
+const SECRETS = [REAL_WALLET, REAL_CHAT_ID, REAL_PAYER_ADDRESS] as const;
+
+/**
+ * Runs both shared privacy checks — the structural key-name scan and the
+ * real-value leak scan — against one adapter method's return value.
+ */
+function assertClean(value: unknown, label: string): void {
+  assertNoForbiddenKeys(value, `$.${label}`);
+  assertNoLeakedValues(value, SECRETS, `$.${label}`);
+}
+
+/**
+ * Type-level exhaustiveness check: this Record must have an entry for every
+ * key of ProtocolQueryPort. Add a method to that interface without adding a
+ * corresponding `it(...)` block + entry here, and this file fails to
+ * compile (`tsc --noEmit` / `vitest run` both catch it) — a future adapter
+ * method that returns a row with chatId on it cannot ship without either
+ * being scanned here or breaking the build.
+ */
+type MethodCoverage = Record<keyof ProtocolQueryPort, true>;
+const METHOD_COVERAGE: MethodCoverage = {
+  countMessageableUsers: true,
+  getCampaignSnapshotCount: true,
+  getCampaignCost: true,
+  getDeliveryCounts: true,
+  getCtaClickCounts: true,
+};
+
+describe("prismaAdapter — protocol-facing privacy boundary (integration, real Postgres)", () => {
+  let campaignId: string;
+  let categoryId: string;
+
+  beforeAll(async () => {
+    // Fresh slate: this suite owns these tables in the integration DB.
+    await prisma.$transaction([
+      prisma.clickEvent.deleteMany(),
+      prisma.deliveryEvent.deleteMany(),
+      prisma.campaignRecipient.deleteMany(),
+      prisma.payment.deleteMany(),
+      prisma.cta.deleteMany(),
+      prisma.campaignCategory.deleteMany(),
+      prisma.moderationReview.deleteMany(),
+      prisma.campaign.deleteMany(),
+      prisma.protocol.deleteMany(),
+      prisma.userInterest.deleteMany(),
+      prisma.telegramLinkHistory.deleteMany(),
+      prisma.telegramLink.deleteMany(),
+      prisma.linkRequest.deleteMany(),
+      prisma.user.deleteMany(),
+      prisma.category.deleteMany(),
+    ]);
+
+    const category = await prisma.category.create({ data: { name: "Yields", active: true } });
+    categoryId = category.id;
+
+    const user = await prisma.user.create({
+      data: { primaryWallet: REAL_WALLET, accountType: "EOA" },
+    });
+
+    await prisma.telegramLink.create({
+      data: { userId: user.id, chatId: REAL_CHAT_ID, status: "VERIFIED", verifiedAt: new Date() },
+    });
+    await prisma.userInterest.create({ data: { userId: user.id, categoryId } });
+
+    const protocol = await prisma.protocol.create({
+      data: { wallet: "0xprotocol000000000000000000000000000000", name: "Test Protocol", status: "APPROVED" },
+    });
+
+    const campaign = await prisma.campaign.create({
+      data: {
+        protocolId: protocol.id,
+        status: "SENDING",
+        chain: "ETHEREUM",
+        token: "USDC",
+        snapshotCount: 1,
+        costAmount: "125.00",
+        approvedAt: new Date(),
+      },
+    });
+    campaignId = campaign.id;
+
+    await prisma.campaignCategory.create({ data: { campaignId, categoryId } });
+    await prisma.campaignRecipient.create({
+      data: { campaignId, chatId: REAL_CHAT_ID, deliveryStatus: "SENT" },
+    });
+    await prisma.deliveryEvent.create({ data: { campaignId, status: "SENT", count: 1 } });
+
+    const cta = await prisma.cta.create({
+      data: { campaignId, label: "Claim", targetUrl: "https://example.com", redirectToken: "tok-integration-1" },
+    });
+    await prisma.clickEvent.create({ data: { ctaId: cta.id, campaignId } });
+
+    // The exact row shape the earlier mutation leaked from: a Payment with a real fromAddress.
+    await prisma.payment.create({
+      data: {
+        campaignId,
+        chain: "ETHEREUM",
+        token: "USDC",
+        amount: "125.00",
+        fromAddress: REAL_PAYER_ADDRESS,
+        status: "VERIFIED",
+        windowExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        verifiedAt: new Date(),
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  it("countMessageableUsers: clean and correct", async () => {
+    const store = createPrismaProtocolQueryStore(prisma);
+    const result = await store.countMessageableUsers({ categoryIds: [categoryId], includeAll: false });
+    expect(result).toBe(1);
+    assertClean(result, "countMessageableUsers");
+  });
+
+  it("getCampaignSnapshotCount: clean and correct", async () => {
+    const store = createPrismaProtocolQueryStore(prisma);
+    const result = await store.getCampaignSnapshotCount(campaignId);
+    expect(result).toBe(1);
+    assertClean(result, "getCampaignSnapshotCount");
+  });
+
+  it("getCampaignCost: clean and correct — the exact path the earlier fromAddress mutation broke", async () => {
+    const store = createPrismaProtocolQueryStore(prisma);
+    const result = await store.getCampaignCost(campaignId);
+    expect(result?.token).toBe("USDC");
+    expect(Number(result?.amount)).toBe(125);
+    assertClean(result, "getCampaignCost");
+  });
+
+  it("getDeliveryCounts: clean and correct", async () => {
+    const store = createPrismaProtocolQueryStore(prisma);
+    const result = await store.getDeliveryCounts(campaignId);
+    expect(result.SENT).toBe(1);
+    assertClean(result, "getDeliveryCounts");
+  });
+
+  it("getCtaClickCounts: clean and correct", async () => {
+    const store = createPrismaProtocolQueryStore(prisma);
+    const result = await store.getCtaClickCounts(campaignId);
+    expect(result).toEqual([{ ctaId: expect.any(String), label: "Claim", count: 1 }]);
+    assertClean(result, "getCtaClickCounts");
+  });
+
+  it("covers every ProtocolQueryPort method — see METHOD_COVERAGE's doc comment", () => {
+    expect(Object.keys(METHOD_COVERAGE).sort()).toEqual(
+      [
+        "countMessageableUsers",
+        "getCampaignCost",
+        "getCampaignSnapshotCount",
+        "getCtaClickCounts",
+        "getDeliveryCounts",
+      ].sort(),
+    );
+  });
+});

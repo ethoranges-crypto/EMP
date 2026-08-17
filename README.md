@@ -45,6 +45,12 @@ that path that could return an identifying field even by accident. A regression 
 (`protocolQueries/index.test.ts`) recursively scans the response shape for wallet/chat_id/address
 -like keys.
 
+That unit test only exercises the aggregation logic against a fake port, though — it never touches
+the Prisma adapter that runs in production, so it can't catch a leak introduced there (e.g. an
+adapter method that starts `select`-ing a `chatId` or `fromAddress` column). That gap is closed by
+`prismaAdapter.integration.test.ts`, which runs the real adapter against a real seeded database —
+see "Test lanes" below.
+
 ### Account uniqueness (SPEC §7.5)
 
 Wallets are free to generate, so the anti-sybil primitive is the phone-verified Telegram account,
@@ -95,8 +101,42 @@ docker compose up -d   # Postgres + Redis
 pnpm install
 pnpm db:migrate         # prisma migrate dev + partial unique indexes
 pnpm dev                 # turbo run dev across web/bot/worker
-pnpm test                 # payment verification, privacy boundary, account uniqueness
+pnpm test                 # fast, no-DB: payment verification, privacy boundary (fake port), account uniqueness
+DATABASE_URL=postgresql://emp:emp@localhost:5432/emp pnpm test:integration   # real Postgres: privacy boundary via the actual Prisma adapter
 ```
+
+### Test lanes
+
+Two lanes, deliberately kept separate (`packages/core/vitest.config.ts` excludes
+`*.integration.test.ts`; `vitest.integration.config.ts` runs only those):
+
+- **`pnpm test`** — fast, no database. Exercises the pure decision logic (account-uniqueness
+  state machine, payment matching, aggregation math) against in-memory fakes.
+- **`pnpm test:integration`** — needs `DATABASE_URL` pointing at a real Postgres (docker-compose's
+  `postgres` service, or any local instance). Currently one suite,
+  `prismaAdapter.integration.test.ts`, which seeds a real user with a real wallet, a real verified
+  Telegram link, and a real payment `fromAddress`, then runs every `ProtocolQueryPort` method
+  against them and asserts two things per method: no forbidden-shaped key anywhere in the
+  response (`assertNoForbiddenKeys`), and none of the seeded secret *values* appear anywhere in it
+  either (`assertNoLeakedValues`, in `packages/core/src/testUtils/privacyAssertions.ts` —
+  shared with the unit test). The second check is what makes seeding real data matter: a scan
+  over null columns would pass whether or not the protection actually works. A
+  `Record<keyof ProtocolQueryPort, true>` completeness map makes the suite fail to compile if a
+  future method on that interface isn't added here too.
+- CI (`.github/workflows/ci.yml`) runs both lanes against a `postgres:16-alpine` service
+  container, applying migrations via `prisma migrate deploy` first — no interactive
+  `migrate dev`.
+
+This split exists because the unit-level privacy test alone has a real blind spot: it never
+touches the Prisma adapter that runs in production. Building the integration test against a live
+database caught two real bugs immediately (not hypothetical — both found while wiring this up,
+before any mutation testing): `partial_unique_indexes.sql` referenced `chat_id`/`user_id`, but
+Prisma leaves field names as camelCase (`"chatId"`/`"userId"`) unless a schema `@map` says
+otherwise, so neither index was being created against the real column names; and
+`applyPartialIndexes.ts`'s statement splitter discarded any SQL statement preceded by a
+same-chunk comment line, so even after fixing the column names, only one of the two indexes was
+actually applied. Both are fixed now, but neither would have surfaced without running migrations
+against a real database.
 
 ## What's scaffolded vs. what's left
 

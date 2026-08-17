@@ -1,19 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getAudienceCount, getCampaignMetrics, type ProtocolQueryPort } from "./index.js";
-
-/** Banned substrings for anything reachable from a protocol-facing response. */
-const FORBIDDEN_KEY_PATTERN = /wallet|chat_?id|address|handle|safeaddress/i;
-
-function assertNoForbiddenKeys(value: unknown, path = "$"): void {
-  if (value === null || typeof value !== "object") return;
-  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-    expect(
-      FORBIDDEN_KEY_PATTERN.test(key),
-      `forbidden key "${key}" found at ${path}.${key} — protocol-facing responses must be aggregate-only`,
-    ).toBe(false);
-    assertNoForbiddenKeys(val, `${path}.${key}`);
-  }
-}
+import { assertNoForbiddenKeys } from "../testUtils/privacyAssertions.js";
 
 function createFakePort(overrides: Partial<ProtocolQueryPort> = {}): ProtocolQueryPort {
   return {

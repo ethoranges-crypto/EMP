@@ -11,6 +11,7 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
     "typecheck": "turbo run typecheck",
     "db:generate": "pnpm --filter @emp/db run generate",
     "db:migrate": "pnpm --filter @emp/db run migrate"

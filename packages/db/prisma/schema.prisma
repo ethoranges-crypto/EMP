@@ -1,0 +1,328 @@
+// EMP data model — see SPEC.md §10 and §7.5.
+//
+// Two invariants enforced here that must never regress:
+//  1. Privacy boundary: CampaignRecipient is internal-only. No protocol-facing
+//     code path may read it directly — go through
+//     packages/core/src/protocol-queries.ts, which returns aggregates only.
+//  2. Account uniqueness (SPEC §7.5): users.primaryWallet is globally unique,
+//     and a TelegramLink's chatId/userId are unique *while status=VERIFIED*.
+//     Prisma's schema DSL can't express a partial (WHERE-clause) unique
+//     index, so that constraint is added by
+//     prisma/sql/partial_unique_indexes.sql, applied by `pnpm db:migrate`
+//     right after `prisma migrate dev`. Do not rely on the @@index below for
+//     that guarantee — it's a performance index only. The same rule is also
+//     enforced in application code by
+//     packages/core/src/identity/telegramLinking.ts so a race can't slip
+//     through between the check and the write.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  EOA
+  SAFE
+}
+
+enum TelegramLinkStatus {
+  VERIFIED
+  UNLINKED
+}
+
+enum LinkHistoryReason {
+  USER_UNLINK
+  ADMIN_BAN
+  SUPERSEDED
+}
+
+enum ProtocolStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum CampaignStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  AWAITING_PAYMENT
+  SENDING
+  COMPLETE
+}
+
+enum TokenSymbol {
+  USDC
+  USDT
+  ETH
+}
+
+enum PaymentStatus {
+  AWAITING
+  VERIFIED
+  UNDERPAID
+  WRONG_TOKEN
+  LATE
+  DUPLICATE
+}
+
+enum DeliveryStatus {
+  SENT
+  FAILED
+  BLOCKED
+}
+
+enum ModerationDecision {
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id            String      @id @default(cuid())
+  primaryWallet String      @unique
+  accountType   AccountType
+  safeAddress   String?
+  createdAt     DateTime    @default(now())
+
+  interests     UserInterest[]
+  telegramLinks TelegramLink[]
+  linkHistory   TelegramLinkHistory[]
+  linkRequests  LinkRequest[]
+
+  @@map("users")
+}
+
+/// The one-time-code step (SPEC §3.1 / §4.1), before a chat_id is known.
+/// Redeemed by apps/bot's /start handler, which resolves it to a userId and
+/// calls attemptLink — at which point a TelegramLink row is created and this
+/// request is deleted so the code can't be replayed.
+model LinkRequest {
+  id        String   @id @default(cuid())
+  userId    String
+  code      String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("link_requests")
+}
+
+model Category {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  active Boolean @default(true)
+
+  userInterests     UserInterest[]
+  campaignCategories CampaignCategory[]
+
+  @@map("categories")
+}
+
+model UserInterest {
+  userId     String
+  categoryId String
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([userId, categoryId])
+  @@map("user_interests")
+}
+
+model TelegramLink {
+  id         String             @id @default(cuid())
+  userId     String
+  chatId     String
+  status     TelegramLinkStatus @default(VERIFIED)
+  verifiedAt DateTime?
+  unlinkedAt DateTime?
+  createdAt  DateTime           @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+  @@index([userId])
+  @@map("telegram_links")
+}
+
+/// Audit trail for every link/unlink. Also what the 30-day re-link cooldown
+/// (SPEC §7.5) is computed from: on a new link attempt, look up the most
+/// recent unlinkedAt for this chatId here.
+model TelegramLinkHistory {
+  id         String             @id @default(cuid())
+  chatId     String
+  userId     String
+  linkedAt   DateTime
+  unlinkedAt DateTime?
+  reason     LinkHistoryReason?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+  @@map("telegram_link_history")
+}
+
+model Protocol {
+  id            String         @id @default(cuid())
+  wallet        String         @unique
+  name          String
+  status        ProtocolStatus @default(PENDING)
+  approvalNotes String?
+  createdAt     DateTime       @default(now())
+
+  campaigns Campaign[]
+
+  @@map("protocols")
+}
+
+model Campaign {
+  id            String         @id @default(cuid())
+  protocolId    String
+  status        CampaignStatus @default(DRAFT)
+  chain         String
+  token         TokenSymbol
+  bodyText      String?
+  imageUrl      String?
+  /// Set once, at IN_REVIEW -> APPROVED (SPEC §4.3 step 5). Immutable after.
+  snapshotCount Int?
+  /// flat_cost_per_user * snapshotCount, locked at the same moment.
+  costAmount    Decimal?       @db.Decimal(38, 18)
+  createdAt     DateTime       @default(now())
+  approvedAt    DateTime?
+
+  protocol          Protocol            @relation(fields: [protocolId], references: [id])
+  categories         CampaignCategory[]
+  recipients         CampaignRecipient[]
+  payments           Payment[]
+  ctas               Cta[]
+  deliveryEvents     DeliveryEvent[]
+  moderationReviews  ModerationReview[]
+
+  @@map("campaigns")
+}
+
+model CampaignCategory {
+  campaignId String
+  categoryId String
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, categoryId])
+  @@map("campaign_categories")
+}
+
+/// INTERNAL ONLY. Never queried by protocol-facing code — see the file-level
+/// comment at the top of this schema and packages/core/src/protocol-queries.ts.
+model CampaignRecipient {
+  id             String         @id @default(cuid())
+  campaignId     String
+  chatId         String
+  deliveryStatus DeliveryStatus @default(SENT)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@map("campaign_recipients")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  campaignId      String
+  chain           String
+  token           TokenSymbol
+  amount          Decimal       @db.Decimal(38, 18)
+  fromAddress     String
+  txHash          String?
+  status          PaymentStatus @default(AWAITING)
+  windowExpiresAt DateTime
+  verifiedAt      DateTime?
+  createdAt       DateTime      @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+
+  @@index([campaignId])
+  @@map("payments")
+}
+
+model Cta {
+  id            String @id @default(cuid())
+  campaignId    String
+  label         String
+  targetUrl     String
+  redirectToken String @unique
+
+  campaign    Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  clickEvents ClickEvent[]
+
+  @@map("ctas")
+}
+
+model ClickEvent {
+  id         String   @id @default(cuid())
+  ctaId      String
+  campaignId String
+  occurredAt DateTime @default(now())
+
+  cta Cta @relation(fields: [ctaId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([ctaId])
+  @@map("click_events")
+}
+
+/// Aggregated counters — the shape protocol-queries.ts is allowed to expose.
+model DeliveryEvent {
+  id         String         @id @default(cuid())
+  campaignId String
+  status     DeliveryStatus
+  count      Int
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, status])
+  @@map("delivery_events")
+}
+
+model ModerationReview {
+  id         String             @id @default(cuid())
+  campaignId String
+  adminId    String
+  decision   ModerationDecision
+  reason     String?
+  createdAt  DateTime           @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+
+  @@map("moderation_reviews")
+}
+
+/// Admin-configurable (SPEC §4.5): flat cost per user and which tokens are
+/// accepted. Singleton row, id is always "singleton".
+model PlatformSettings {
+  id               String        @id @default("singleton")
+  flatCostPerUser  Decimal       @db.Decimal(38, 18)
+  acceptedTokens   TokenSymbol[]
+  updatedAt        DateTime      @updatedAt
+
+  @@map("platform_settings")
+}
+
+model AdminAction {
+  id         String   @id @default(cuid())
+  adminId    String
+  action     String
+  targetType String
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@map("admin_actions")
+}

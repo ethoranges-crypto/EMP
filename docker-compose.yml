@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: emp
+      POSTGRES_PASSWORD: emp
+      POSTGRES_DB: emp
+    ports:
+      - "5432:5432"
+    volumes:
+      - emp_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  emp_postgres_data:

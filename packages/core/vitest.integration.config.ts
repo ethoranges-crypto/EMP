@@ -10,5 +10,12 @@ export default defineConfig({
     exclude: ["**/node_modules/**"],
     hookTimeout: 30_000,
     testTimeout: 30_000,
+    // Every integration file shares one live Postgres database. Vitest
+    // parallelizes across test *files* by default (separate workers), which
+    // races one file's cleanup against another file's seeded fixtures —
+    // exactly the failure this comment is here because of. Force strictly
+    // sequential file execution so each suite's data is stable for its own
+    // duration.
+    fileParallelism: false,
   },
 });

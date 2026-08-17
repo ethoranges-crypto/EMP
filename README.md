@@ -122,7 +122,15 @@ Two lanes, deliberately kept separate (`packages/core/vitest.config.ts` excludes
   shared with the unit test). The second check is what makes seeding real data matter: a scan
   over null columns would pass whether or not the protection actually works. A
   `Record<keyof ProtocolQueryPort, true>` completeness map makes the suite fail to compile if a
-  future method on that interface isn't added here too.
+  future method on that interface isn't added here too. A second suite,
+  `dbUniquenessBackstop.integration.test.ts`, tests the partial unique indexes themselves rather
+  than application code: it asserts both indexes physically exist (via `pg_indexes`, matched
+  against the real camelCase column names) and that Postgres itself rejects a duplicate
+  `chatId`/`userId` write performed directly through the Prisma client — deliberately bypassing
+  `telegramLinking.ts` — so the DB-level backstop is proven independent of the app-layer check it
+  backs up. Both suites share one live database and vitest parallelizes across test files by
+  default, so `fileParallelism: false` is set in `vitest.integration.config.ts` — without it, one
+  file's cleanup races another file's fixtures.
 - CI (`.github/workflows/ci.yml`) runs both lanes against a `postgres:16-alpine` service
   container, applying migrations via `prisma migrate deploy` first — no interactive
   `migrate dev`.

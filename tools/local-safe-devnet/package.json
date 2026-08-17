@@ -1,0 +1,19 @@
+{
+  "name": "@emp/local-safe-devnet",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deploys a real Gnosis Safe (official v1.4.1 bytecode) to a local Hardhat EVM, so the Safe-owner SIWE path can be tested without a public testnet.",
+  "scripts": {
+    "devnet": "hardhat node --hostname 127.0.0.1 --port 8545",
+    "deploy": "node deploy-safe.mjs",
+    "typecheck": "echo 'no typecheck — plain JS dev tool'"
+  },
+  "dependencies": {
+    "@safe-global/safe-contracts": "1.4.1",
+    "viem": "^2.55.17"
+  },
+  "devDependencies": {
+    "hardhat": "^3.13.0"
+  }
+}

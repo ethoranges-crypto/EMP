@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@emp/db";
+import { getChain } from "@emp/config";
 import { isAdminWallet, verifySafeOwnership, verifySiwe } from "@/lib/auth-siwe";
 import { getSession } from "@/lib/session";
 
@@ -70,13 +71,22 @@ export async function POST(request: Request) {
     if (!body.safeAddress || !body.chainKey) {
       return NextResponse.json({ error: "safeAddress and chainKey are required for a Safe account" }, { status: 400 });
     }
+    const chain = getChain(body.chainKey);
+    if (!chain) {
+      return NextResponse.json({ error: `${body.chainKey} isn't a supported chain` }, { status: 400 });
+    }
     const isOwner = await verifySafeOwnership({
       safeAddress: body.safeAddress,
       ownerAddress: address,
       chainKey: body.chainKey,
     });
     if (!isOwner) {
-      return NextResponse.json({ error: `${address} is not an owner of ${body.safeAddress}` }, { status: 403 });
+      return NextResponse.json(
+        {
+          error: `This address isn't an owner of a Safe on ${chain.displayName} — switch chain or check the address.`,
+        },
+        { status: 403 },
+      );
     }
   }
 

@@ -8,3 +8,5 @@ dist/
 .DS_Store
 coverage/
 .pnpm-store/
+tools/local-safe-devnet/cache/
+tools/local-safe-devnet/artifacts/

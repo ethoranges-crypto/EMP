@@ -83,7 +83,7 @@ export default function UserJourneyPage() {
 
       {meStatus === "signed-in" && me && (
         <div className="flex flex-col gap-6">
-          <MessageableBadge messageable={me.messageable} />
+          <MessageableBadge messageable={me.messageable} telegramLinkStatus={me.telegramLinkStatus} />
           <InterestsPanel />
           <TelegramPanel me={me} onChange={() => void fetchMe()} />
           <button

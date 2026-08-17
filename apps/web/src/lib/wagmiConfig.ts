@@ -21,3 +21,20 @@ export const SAFE_CHAIN_OPTIONS = [
   { key: "OPTIMISM", label: "Optimism" },
   { key: "BASE", label: "Base" },
 ] as const;
+
+const CHAIN_ID_TO_KEY: Record<number, (typeof SAFE_CHAIN_OPTIONS)[number]["key"]> = {
+  [mainnet.id]: "ETHEREUM",
+  [arbitrum.id]: "ARBITRUM",
+  [optimism.id]: "OPTIMISM",
+  [base.id]: "BASE",
+};
+
+/**
+ * Maps the wallet's actually-connected chain to a Safe-chain-selector
+ * default, so the dropdown doesn't silently default to Ethereum regardless
+ * of what network the wallet is on. Falls back to Ethereum only when the
+ * connected chain isn't one we support a Safe check for at all.
+ */
+export function chainKeyForChainId(chainId: number | undefined): (typeof SAFE_CHAIN_OPTIONS)[number]["key"] {
+  return (chainId !== undefined && CHAIN_ID_TO_KEY[chainId]) || SAFE_CHAIN_OPTIONS[0].key;
+}

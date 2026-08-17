@@ -164,14 +164,33 @@ call — campaign compose/CTA-authoring UI and category CRUD UI aren't built yet
 `GET /api/user/me` is the single state endpoint the page polls: wallet identity, saved interests,
 and `telegramLinkStatus` (`none | pending | rejected | expired | linked`) plus `messageable` — the
 one boolean that actually matters, since SPEC §7.5 only counts a *currently verified* Telegram
-link, not "has a wallet" or "picked interests." The `MessageableBadge` component renders exactly
-that boolean, unconditionally, so the invariant is visible rather than implied.
+link, not "has a wallet" or "picked interests." `MessageableBadge` never renders a bare "No" —
+when not messageable, its copy is always the next step for that specific `telegramLinkStatus`
+("Link Telegram to start receiving messages", "Waiting for Telegram confirmation", "Telegram link
+expired — generate a new one below", etc.), so the status doubles as the fix.
 
 Linking happens through the Telegram bot, not a web API call — so a rejection (SPEC §7.5: chat_id
 already bound elsewhere) happens inside the Telegram chat, invisible to the browser tab the user
 still has open. `LinkRequest` gained `rejectedReason`/`rejectedAt` columns so apps/bot's `/start`
 handler can record what it told the user in-chat; `/api/user/me` surfaces the same message, and
 `TelegramPanel` renders it verbatim rather than a generic "linking failed."
+
+**LinkRequest codes are single-use AND time-bound**, not just time-bound — treated as a §7.5-adjacent
+security property, not UI polish: a pile of simultaneously-valid one-time codes for one account is
+an attack surface (an old code sitting in browser history or a log stays redeemable indefinitely
+otherwise). `packages/core/src/identity/linkRequest.ts`'s `createLinkRequest` invalidates any prior
+un-redeemed code for that account before issuing a new one; `redeemLinkRequest` is the single point
+that decides redeemability (expired and superseded codes both resolve to `null`, no separate
+"which reason" branching needed by callers). Covered by both a fake-port unit test
+(`linkRequest.test.ts`) and a real-Postgres integration test (`linkRequest.integration.test.ts`)
+asserting: an expired code is rejected, a superseded code is rejected even before expiry, and only
+the latest of several issued-in-a-row codes redeems.
+
+**The Safe-owner chain selector defaults to the wallet's actually-connected chain** (via wagmi's
+`useAccount().chainId`, mapped through `chainKeyForChainId`), not a hardcoded default — and stops
+auto-following once the user picks a chain manually. A non-owner (or wrong-chain) attempt gets a
+specific message — `"This address isn't an owner of a Safe on {chain} — switch chain or check the
+address."` — instead of a bare 403.
 
 Verified live against the real stack (Postgres running, dev server up), not just typechecked:
 - A full SIWE sign-in through the actual browser components (`ConnectButton` → `SignInPanel` →
@@ -186,8 +205,28 @@ Verified live against the real stack (Postgres running, dev server up), not just
 - A second account attempting to bind that same chat_id gets rejected with SPEC §7.5's exact
   message, and `TelegramPanel` renders it in the `rejected` state — same code path, no separate UI
   logic to keep in sync.
+- A wallet connected to Arbitrum defaults the Safe chain dropdown to Arbitrum, not Ethereum.
+- Sign-in as the real owner of a real locally-deployed Safe succeeds; a non-owner against that same
+  Safe gets the chain-specific 403 message above.
 
-Known gap: the Safe-owner sign-in path exercises the same code as the EOA path shown above, but
-verifying it end-to-end needs a real Safe deployed on a real (or forked) chain — there's no local
-fixture for that here, so it's covered by `packages/core`'s `verifyOwner.ts` logic and the API
-route's branching, not by a live run.
+### Testing the Safe-owner path locally
+
+There's no public testnet reachable from this repo's usual dev/CI environment, so
+`tools/local-safe-devnet` deploys a real Gnosis Safe (official v1.4.1 bytecode, not a mock) to a
+local Hardhat EVM instead — real contract execution and real on-chain storage, just not a public
+chain. See `tools/local-safe-devnet/README.md` for the two-command setup; the deploy script prints
+the `ETHEREUM_RPC_URL`/`ETHEREUM_TREASURY_ADDRESS` pair to drop into `apps/web/.env.local` plus the
+deployed Safe's address and a test-only owner key. Re-run it whenever `verifyOwner.ts` or the SIWE
+verify route changes, not as a one-off.
+
+### Known gap — flagged, not yet closed
+
+**Telegram code redemption has still only been exercised via substitution, never a live Telegram
+round-trip.** This repo's sandbox can't reach `api.telegram.org` (egress policy), so every pass so
+far — including the live-stack verification above — redeems a code by calling
+`attemptLink()`/`redeemLinkRequest()` directly, the same code apps/bot's `/start` handler calls,
+just not arrived at via an actual Telegram message. That's a reasonable stand-in for the
+*application* logic, but it has never proven that a real deep link (`t.me/<bot>?start=<code>`)
+actually reaches a running bot process and that `ctx.match` parses the code correctly from a real
+Telegram update. That needs a real bot token and a live Telegram round-trip from a network-unrestricted
+environment — hold it for the testnet dry-run.

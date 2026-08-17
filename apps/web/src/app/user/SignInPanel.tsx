@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { useSiweSignIn } from "./useSiwe";
-import { SAFE_CHAIN_OPTIONS } from "@/lib/wagmiConfig";
+import { SAFE_CHAIN_OPTIONS, chainKeyForChainId } from "@/lib/wagmiConfig";
 
 const BUTTON_LABEL: Record<string, string> = {
   nonce: "Preparing…",
@@ -16,7 +16,15 @@ export function SignInPanel({ onSignedIn }: { onSignedIn: () => void }) {
   const { signIn, status, error } = useSiweSignIn();
   const [useSafe, setUseSafe] = useState(false);
   const [safeAddress, setSafeAddress] = useState("");
-  const [chainKey, setChainKey] = useState<string>(SAFE_CHAIN_OPTIONS[0].key);
+  const [chainKey, setChainKey] = useState<string>(() => chainKeyForChainId(chainId));
+  const [chainKeyTouched, setChainKeyTouched] = useState(false);
+
+  // Track the wallet's actual connected chain, not a hardcoded default —
+  // but stop overriding once the user has picked one themselves.
+  useEffect(() => {
+    if (chainKeyTouched) return;
+    setChainKey(chainKeyForChainId(chainId));
+  }, [chainId, chainKeyTouched]);
 
   const busy = status === "nonce" || status === "awaiting-signature" || status === "verifying";
 
@@ -56,7 +64,10 @@ export function SignInPanel({ onSignedIn }: { onSignedIn: () => void }) {
           />
           <select
             value={chainKey}
-            onChange={(e) => setChainKey(e.target.value)}
+            onChange={(e) => {
+              setChainKeyTouched(true);
+              setChainKey(e.target.value);
+            }}
             className="rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100"
           >
             {SAFE_CHAIN_OPTIONS.map((c) => (

@@ -1,5 +1,7 @@
 export * from "./identity/telegramLinking.js";
 export * from "./identity/prismaTelegramLinkStore.js";
+export * from "./identity/linkRequest.js";
+export * from "./identity/prismaLinkRequestStore.js";
 export * from "./protocolQueries/index.js";
 export * from "./protocolQueries/prismaAdapter.js";
 export * from "./campaigns/moderation.js";

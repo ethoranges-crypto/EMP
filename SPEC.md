@@ -79,6 +79,22 @@ Value: protocols get a reliable way to reach DeFi users (notoriously hard); user
 - **Admin-configured**, not hardcoded. Seed with: Yields, New features, New products, New protocols, New utility, Everything.
 - Users multi-select ("Everything" implies all). Protocols target by the same taxonomy.
 
+## 7.5 Sybil resistance / account uniqueness
+
+Protocols pay to reach *distinct real humans*, so audience integrity is a core product guarantee. Wallets are free to generate, so the wallet is **not** the anti-sybil primitive — the **phone-verified Telegram account is**. Enforce a strict 1:1:1 mapping: one wallet ↔ one account ↔ one Telegram account.
+
+Rules:
+- `users.primary_wallet` is **unique** — one wallet, one account.
+- `telegram_links.chat_id` is **globally unique** — a Telegram account binds to at most one EMP account, ever (across both EOA and Safe account types).
+- At most **one verified** Telegram link per account.
+- On link attempt, if the `chat_id` is already bound to another account → reject with a clear message.
+- An account is **messageable** (and only then counts toward any audience or snapshot) *only* while it has a current verified Telegram link.
+- **Re-linking:** moving a Telegram account to a different wallet requires explicit unlink first, then a **cooldown** (default 30 days, config-driven) before it can bind elsewhere. Every link/unlink is written to `telegram_link_history` for audit.
+
+Effect: a spammer generating 1,000 wallets but controlling 5 Telegram accounts can make only 5 accounts messageable; the rest never enter an audience and never cost a protocol anything. Audience size therefore approximates distinct humans.
+
+Phase-2 hardening (stub, not MVP): short-expiry one-time codes, rate-limited code requests, admin ban of a `chat_id` or wallet, and optional stronger proof-of-personhood if needed.
+
 ## 8. Telegram delivery
 
 - One EMP bot (Bot API). Suggested lib: **grammY** or **telegraf**.
@@ -98,9 +114,10 @@ Value: protocols get a reliable way to reach DeFi users (notoriously hard); user
 
 ## 10. Data model (sketch — refine as needed)
 
-- **users** (id, primary_wallet, account_type [eoa|safe], safe_address?, created_at)
+- **users** (id, primary_wallet **[UNIQUE]**, account_type [eoa|safe], safe_address?, created_at)
 - **user_interests** (user_id, category_id)
-- **telegram_links** (user_id, chat_id, verified_at, one_time_code, status)
+- **telegram_links** (user_id, chat_id **[UNIQUE]**, verified_at, one_time_code, status) — at most one *verified* link per user; a `chat_id` binds to only one account, ever
+- **telegram_link_history** (chat_id, user_id, linked_at, unlinked_at, reason) — audit trail; supports the re-link cooldown
 - **categories** (id, name, active)
 - **protocols** (id, wallet, name, status [pending|approved|rejected|suspended], approval_notes)
 - **campaigns** (id, protocol_id, status, target_category_ids, chain, token, snapshot_count, cost, created_at)
@@ -153,3 +170,4 @@ Scale target: thousands of registered users = success. Design for that, don't pa
 4. Recipient set + cost are snapshotted at approval. *(assumed — confirm)*
 5. Protocol pays from its authenticated login wallet (enables sender-based verification). *(assumed — confirm; else add a "declare paying address" step)*
 6. Single treasury address per chain; per-campaign contract deferred to Phase 2. ✅ recommended
+7. Strict 1:1:1 wallet ↔ account ↔ Telegram uniqueness; audiences drawn only from verified links; 30-day re-link cooldown. ✅ confirmed (see §7.5)

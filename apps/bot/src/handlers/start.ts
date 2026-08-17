@@ -46,6 +46,13 @@ export function registerStartHandler(bot: Bot): void {
       await ctx.reply("You're linked! You'll get messages here based on the interests you picked.");
     } catch (err) {
       if (err instanceof AlreadyBoundError || err instanceof AlreadyLinkedError || err instanceof CooldownActiveError) {
+        // Recorded (not just replied) so the web page the user still has
+        // open can show the same rejection via GET /api/user/me — the
+        // Telegram reply alone is invisible to that tab.
+        await prisma.linkRequest.update({
+          where: { id: request.id },
+          data: { rejectedReason: err.message, rejectedAt: new Date() },
+        });
         await ctx.reply(err.message);
         return;
       }

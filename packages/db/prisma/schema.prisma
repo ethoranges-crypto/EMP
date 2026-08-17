@@ -102,12 +102,20 @@ model User {
 /// Redeemed by apps/bot's /start handler, which resolves it to a userId and
 /// calls attemptLink — at which point a TelegramLink row is created and this
 /// request is deleted so the code can't be replayed.
+///
+/// Rejection happens inside the Telegram chat (the bot replies there), which
+/// the web UI has no direct visibility into — so on an attemptLink() failure
+/// (AlreadyBoundError/AlreadyLinkedError/CooldownActiveError) the bot also
+/// records the reason here instead of deleting the row, so the web page the
+/// user still has open can poll GET /api/user/me and show the same message.
 model LinkRequest {
-  id        String   @id @default(cuid())
-  userId    String
-  code      String   @unique
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  id             String    @id @default(cuid())
+  userId         String
+  code           String    @unique
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+  rejectedReason String?
+  rejectedAt     DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

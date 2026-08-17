@@ -57,6 +57,9 @@ importers:
       '@rainbow-me/rainbowkit':
         specifier: ^2.1.6
         version: 2.2.11(@tanstack/react-query@5.101.4(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(viem@2.55.17(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3))(wagmi@2.19.5(@tanstack/query-core@5.101.4)(@tanstack/react-query@5.101.4(react@18.3.1))(@types/react@18.3.31)(bufferutil@4.1.0)(ioredis@5.11.1)(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.55.17(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3))(zod@4.4.3))
+      '@tanstack/react-query':
+        specifier: ^5.55.4
+        version: 5.101.4(react@18.3.1)
       iron-session:
         specifier: ^8.0.3
         version: 8.0.4

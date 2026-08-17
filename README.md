@@ -154,6 +154,40 @@ linking/sending path, and the API routes wiring all of that together — with te
 three things CLAUDE.md rule 8 says must never break (payment verification, the privacy boundary,
 account uniqueness).
 
-Not yet built: the actual React UI for the user/protocol/admin journeys (routes exist as
-placeholders pointing at the API endpoints they'll call), campaign compose/CTA-authoring UI, and
-category CRUD UI. The backend surface for all of it already exists.
+The **user journey** (`apps/web/src/app/user/`) is built end-to-end against real API routes: SIWE
+connect (EOA + Safe-owner) → interests → Telegram one-time-code linking → a live "Messageable:
+Yes/No" status. `/protocol` and `/admin` remain placeholders pointing at the API endpoints they'll
+call — campaign compose/CTA-authoring UI and category CRUD UI aren't built yet.
+
+### User journey UI
+
+`GET /api/user/me` is the single state endpoint the page polls: wallet identity, saved interests,
+and `telegramLinkStatus` (`none | pending | rejected | expired | linked`) plus `messageable` — the
+one boolean that actually matters, since SPEC §7.5 only counts a *currently verified* Telegram
+link, not "has a wallet" or "picked interests." The `MessageableBadge` component renders exactly
+that boolean, unconditionally, so the invariant is visible rather than implied.
+
+Linking happens through the Telegram bot, not a web API call — so a rejection (SPEC §7.5: chat_id
+already bound elsewhere) happens inside the Telegram chat, invisible to the browser tab the user
+still has open. `LinkRequest` gained `rejectedReason`/`rejectedAt` columns so apps/bot's `/start`
+handler can record what it told the user in-chat; `/api/user/me` surfaces the same message, and
+`TelegramPanel` renders it verbatim rather than a generic "linking failed."
+
+Verified live against the real stack (Postgres running, dev server up), not just typechecked:
+- A full SIWE sign-in through the actual browser components (`ConnectButton` → `SignInPanel` →
+  `useSiwe.ts`) — a mock EIP-1193 provider was injected via the real
+  `eip6963:announceProvider` discovery event wagmi listens for (not `window.ethereum` alone,
+  which RainbowKit's MetaMask tile bypasses in favor of `@metamask/sdk`'s own deep-link flow), with
+  `personal_sign` routed back through Playwright's `exposeFunction` to a real viem
+  `account.signMessage()` — a genuine secp256k1 signature the server verified.
+- The full happy path (sign in → save interests → request a Telegram link → the exact
+  `attemptLink()` call apps/bot's handler makes, binding a chat_id) flips `messageable` from
+  `false` to `true`, live.
+- A second account attempting to bind that same chat_id gets rejected with SPEC §7.5's exact
+  message, and `TelegramPanel` renders it in the `rejected` state — same code path, no separate UI
+  logic to keep in sync.
+
+Known gap: the Safe-owner sign-in path exercises the same code as the EOA path shown above, but
+verifying it end-to-end needs a real Safe deployed on a real (or forked) chain — there's no local
+fixture for that here, so it's covered by `packages/core`'s `verifyOwner.ts` logic and the API
+route's branching, not by a live run.

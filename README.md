@@ -105,6 +105,47 @@ pnpm test                 # fast, no-DB: payment verification, privacy boundary 
 DATABASE_URL=postgresql://emp:emp@localhost:5432/emp pnpm test:integration   # real Postgres: privacy boundary via the actual Prisma adapter
 ```
 
+### Getting started on Windows
+
+The commands above assume a Unix-like shell (macOS/Linux). On Windows, the simplest path is
+**WSL2** (Windows Subsystem for Linux) — it gives you a real Linux environment inside Windows, so
+every command in this README works exactly as written, with no extra translation.
+
+1. **Install WSL2 with Ubuntu.** Open PowerShell **as Administrator** and run:
+   ```powershell
+   wsl --install
+   ```
+   Restart your PC when prompted, then finish the Ubuntu setup (pick a username/password).
+
+2. **Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)** —
+   during setup it offers WSL2 integration; accept it, then in Docker Desktop's
+   Settings → Resources → WSL Integration, make sure your Ubuntu distro is enabled.
+
+3. **Open the "Ubuntu" app** (search for it in the Start menu) — not PowerShell or Command
+   Prompt. This is your terminal for every step from here on.
+
+4. **Install Node.js 20+ and pnpm** inside Ubuntu:
+   ```bash
+   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+   sudo apt-get install -y nodejs
+   corepack enable
+   ```
+
+5. **Clone the repo inside the Linux filesystem** (your home directory, `~`, not `/mnt/c/...`) —
+   this matters for pnpm and Next.js's file watching to work reliably and stay fast:
+   ```bash
+   cd ~
+   git clone https://github.com/ethoranges-crypto/EMP.git
+   cd EMP
+   ```
+
+6. **Follow the "Local development" steps above**, in this same Ubuntu terminal —
+   `cp .env.example .env`, `docker compose up -d`, `pnpm install`, and so on.
+
+If you use VS Code, install the **WSL** extension, then run `code .` from inside the Ubuntu
+terminal — it opens VS Code connected straight to this Linux environment, so its integrated
+terminal, debugger, etc. all just work too.
+
 ### Test lanes
 
 Two lanes, deliberately kept separate (`packages/core/vitest.config.ts` excludes

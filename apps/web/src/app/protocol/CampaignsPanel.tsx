@@ -2,7 +2,13 @@
 
 import type { ProtocolCampaign } from "./types";
 
-export function CampaignsPanel({ campaigns }: { campaigns: ProtocolCampaign[] }) {
+export function CampaignsPanel({
+  campaigns,
+  onCompose,
+}: {
+  campaigns: ProtocolCampaign[];
+  onCompose: (campaignId: string) => void;
+}) {
   if (campaigns.length === 0) return null;
 
   return (
@@ -20,8 +26,18 @@ export function CampaignsPanel({ campaigns }: { campaigns: ProtocolCampaign[] })
             <p className="text-xs text-slate-500">
               {c.chain} · {c.token} · {new Date(c.createdAt).toLocaleString()}
             </p>
+            <p className="text-xs text-slate-600">
+              {c.hasComposeContent
+                ? `Composed — ${c.ctaCount} CTA${c.ctaCount === 1 ? "" : "s"}`
+                : "Not composed yet"}
+            </p>
             {c.status === "DRAFT" && (
-              <p className="text-xs text-slate-600">Compose (text, image, CTAs) is coming in the next build stage.</p>
+              <button
+                onClick={() => onCompose(c.id)}
+                className="mt-1 self-start rounded-full bg-white/10 px-4 py-1.5 text-xs text-slate-100 hover:bg-white/20"
+              >
+                {c.hasComposeContent ? "Edit compose" : "Compose"}
+              </button>
             )}
           </div>
         ))}

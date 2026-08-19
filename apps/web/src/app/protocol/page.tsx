@@ -7,6 +7,7 @@ import { SignInPanel } from "./SignInPanel";
 import { ApplicationPanel } from "./ApplicationPanel";
 import { NewCampaignPanel } from "./NewCampaignPanel";
 import { CampaignsPanel } from "./CampaignsPanel";
+import { ComposePanel } from "./ComposePanel";
 import type { ProtocolCampaign, ProtocolMe } from "./types";
 
 type MeStatus = "loading" | "signed-out" | "signed-in" | "error";
@@ -16,6 +17,7 @@ export default function ProtocolJourneyPage() {
   const [me, setMe] = useState<ProtocolMe | null>(null);
   const [meStatus, setMeStatus] = useState<MeStatus>("loading");
   const [campaigns, setCampaigns] = useState<ProtocolCampaign[]>([]);
+  const [composingCampaignId, setComposingCampaignId] = useState<string | null>(null);
 
   const fetchCampaigns = useCallback(async () => {
     const res = await fetch("/api/protocol/campaigns");
@@ -100,7 +102,14 @@ export default function ProtocolJourneyPage() {
           {me.status === "APPROVED" && (
             <>
               <NewCampaignPanel onCreated={() => void fetchCampaigns()} />
-              <CampaignsPanel campaigns={campaigns} />
+              <CampaignsPanel campaigns={campaigns} onCompose={(id) => setComposingCampaignId(id)} />
+              {composingCampaignId && (
+                <ComposePanel
+                  campaignId={composingCampaignId}
+                  onClose={() => setComposingCampaignId(null)}
+                  onSaved={() => void fetchCampaigns()}
+                />
+              )}
             </>
           )}
           <button

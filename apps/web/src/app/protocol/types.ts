@@ -27,5 +27,27 @@ export interface ProtocolCampaign {
   chain: string;
   token: TokenSymbol;
   categoryNames: string[];
+  hasComposeContent: boolean;
+  ctaCount: number;
+  createdAt: string;
+}
+
+/** A CTA as returned by the campaign detail/compose-save endpoints — already wrapped in its /r/:token redirect. */
+export interface CampaignCta {
+  label: string;
+  targetUrl: string;
+  redirectUrl: string;
+}
+
+/** GET /api/protocol/campaigns/[id]'s response shape. */
+export interface CampaignDetail {
+  id: string;
+  status: CampaignStatus;
+  chain: string;
+  token: TokenSymbol;
+  categoryNames: string[];
+  bodyText: string | null;
+  imageUrl: string | null;
+  ctas: CampaignCta[];
   createdAt: string;
 }

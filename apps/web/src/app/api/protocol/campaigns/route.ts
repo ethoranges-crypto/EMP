@@ -56,7 +56,7 @@ export async function GET() {
     const campaigns = await prisma.campaign.findMany({
       where: { protocolId: accountId },
       orderBy: { createdAt: "desc" },
-      include: { categories: { include: { category: true } } },
+      include: { categories: { include: { category: true } }, _count: { select: { ctas: true } } },
     });
     return NextResponse.json({
       campaigns: campaigns.map((c) => ({
@@ -65,6 +65,8 @@ export async function GET() {
         chain: c.chain,
         token: c.token,
         categoryNames: c.categories.map((cc) => cc.category.name),
+        hasComposeContent: c.bodyText !== null,
+        ctaCount: c._count.ctas,
         createdAt: c.createdAt,
       })),
     });

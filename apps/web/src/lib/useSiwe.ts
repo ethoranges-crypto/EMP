@@ -14,7 +14,7 @@ export type SignInError =
 export interface SignInParams {
   address: string;
   chainId: number;
-  role: "user" | "protocol";
+  role: "user" | "protocol" | "admin";
   accountType: "EOA" | "SAFE";
   safeAddress?: string;
   chainKey?: string;
@@ -25,8 +25,8 @@ export interface SignInParams {
  * Every step hits the real API route — nothing here is mocked. Wallet
  * rejection (the user cancels the signature prompt) and Safe-ownership
  * failure are surfaced as distinct, user-facing error states rather than a
- * generic failure. Shared by the /user and /protocol journeys — the verify
- * route branches on `role`, this hook doesn't need to.
+ * generic failure. Shared by the /user, /protocol, and /admin journeys — the
+ * verify route branches on `role`, this hook doesn't need to.
  */
 export function useSiweSignIn() {
   const { signMessageAsync } = useSignMessage();

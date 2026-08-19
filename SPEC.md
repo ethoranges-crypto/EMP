@@ -36,7 +36,9 @@ Value: protocols get a reliable way to reach DeFi users (notoriously hard); user
 - User can edit interests, re-link/unlink Telegram, or delete their data at any time.
 
 ### 4.2 Protocol onboarding
-- Connect wallet + SIWE.
+- Connect wallet + SIWE. Same account-type support as §4.1's user side:
+  - EOA: the SIWE signature is the ownership proof.
+  - Gnosis Safe: protocol connects an **owner** wallet, signs SIWE, and EMP verifies on-chain that the address is an owner of the named Safe (optionally support EIP-1271 Safe signing as a fallback). Protocols commonly operate/pay from a multisig treasury, so this isn't optional for them either — one signature, no multi-signer coordination.
 - Submit an application. Manual approval gate to stop scams: protocol proves legitimacy out-of-band (e.g. a Twitter/X DM from their official account to EMP with a pre-worded confirmation of their wallet address). Admin approves/rejects. Un-approved protocols cannot create or send campaigns.
 
 ### 4.3 Campaign creation

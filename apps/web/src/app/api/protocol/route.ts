@@ -17,6 +17,8 @@ export async function GET() {
     const protocol = await prisma.protocol.findUniqueOrThrow({ where: { id: accountId } });
     return NextResponse.json({
       wallet: protocol.wallet,
+      accountType: protocol.accountType,
+      safeAddress: protocol.safeAddress,
       name: protocol.name,
       status: protocol.status,
       approvalNotes: protocol.approvalNotes,

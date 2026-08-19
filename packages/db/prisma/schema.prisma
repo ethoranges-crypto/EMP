@@ -180,6 +180,9 @@ model TelegramLinkHistory {
 model Protocol {
   id            String         @id @default(cuid())
   wallet        String         @unique
+  /// The signing address — an owner EOA when accountType is SAFE, same as User.primaryWallet.
+  accountType   AccountType    @default(EOA)
+  safeAddress   String?
   name          String
   status        ProtocolStatus @default(PENDING)
   approvalNotes String?

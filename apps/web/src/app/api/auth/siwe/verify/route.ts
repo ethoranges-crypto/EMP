@@ -14,11 +14,49 @@ interface VerifyBody {
 }
 
 /**
+ * Shared by the user and protocol branches (CLAUDE.md Auth: EOA or Safe on
+ * either side, Safe verified the same way regardless of role — owner signs
+ * SIWE, we verify on-chain owner membership). Returns the Safe address to
+ * persist (null for a plain EOA) or a ready-to-return error response.
+ */
+async function resolveSafeAddress(
+  address: string,
+  body: VerifyBody,
+): Promise<{ safeAddress: string | null } | { error: NextResponse }> {
+  if ((body.accountType ?? "EOA") !== "SAFE") return { safeAddress: null };
+
+  if (!body.safeAddress || !body.chainKey) {
+    return {
+      error: NextResponse.json({ error: "safeAddress and chainKey are required for a Safe account" }, { status: 400 }),
+    };
+  }
+  const chain = getChain(body.chainKey);
+  if (!chain) {
+    return { error: NextResponse.json({ error: `${body.chainKey} isn't a supported chain` }, { status: 400 }) };
+  }
+  const isOwner = await verifySafeOwnership({
+    safeAddress: body.safeAddress,
+    ownerAddress: address,
+    chainKey: body.chainKey,
+  });
+  if (!isOwner) {
+    return {
+      error: NextResponse.json(
+        {
+          error: `This address isn't an owner of a Safe on ${chain.displayName} — switch chain or check the address.`,
+        },
+        { status: 403 },
+      ),
+    };
+  }
+  return { safeAddress: body.safeAddress };
+}
+
+/**
  * One SIWE verification endpoint for all three roles (CLAUDE.md Auth): the
  * signature always proves control of `address`; what differs per role is
- * what that address is then checked against (Safe ownership for a user
- * linking a Safe, the admin wallet allowlist for admin, nothing extra for a
- * protocol beyond its own wallet identity).
+ * what that address is then checked against (Safe ownership for a user or
+ * protocol signing in via a Safe, the admin wallet allowlist for admin).
  */
 export async function POST(request: Request) {
   const body = (await request.json()) as VerifyBody;
@@ -63,9 +101,13 @@ export async function POST(request: Request) {
   }
 
   if (body.role === "protocol") {
+    const accountType = body.accountType ?? "EOA";
+    const safeResult = await resolveSafeAddress(address, body);
+    if ("error" in safeResult) return safeResult.error;
+
     const protocol = await prisma.protocol.upsert({
       where: { wallet: address },
-      create: { wallet: address, name: "", status: "PENDING" },
+      create: { wallet: address, accountType, safeAddress: safeResult.safeAddress, name: "", status: "PENDING" },
       update: {},
     });
     session.role = "protocol";
@@ -77,36 +119,12 @@ export async function POST(request: Request) {
 
   // role === "user"
   const accountType = body.accountType ?? "EOA";
-  if (accountType === "SAFE") {
-    if (!body.safeAddress || !body.chainKey) {
-      return NextResponse.json({ error: "safeAddress and chainKey are required for a Safe account" }, { status: 400 });
-    }
-    const chain = getChain(body.chainKey);
-    if (!chain) {
-      return NextResponse.json({ error: `${body.chainKey} isn't a supported chain` }, { status: 400 });
-    }
-    const isOwner = await verifySafeOwnership({
-      safeAddress: body.safeAddress,
-      ownerAddress: address,
-      chainKey: body.chainKey,
-    });
-    if (!isOwner) {
-      return NextResponse.json(
-        {
-          error: `This address isn't an owner of a Safe on ${chain.displayName} — switch chain or check the address.`,
-        },
-        { status: 403 },
-      );
-    }
-  }
+  const safeResult = await resolveSafeAddress(address, body);
+  if ("error" in safeResult) return safeResult.error;
 
   const user = await prisma.user.upsert({
     where: { primaryWallet: address },
-    create: {
-      primaryWallet: address,
-      accountType,
-      safeAddress: accountType === "SAFE" ? body.safeAddress : null,
-    },
+    create: { primaryWallet: address, accountType, safeAddress: safeResult.safeAddress },
     update: {},
   });
 

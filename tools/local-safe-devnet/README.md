@@ -19,7 +19,7 @@ pnpm --filter @emp/local-safe-devnet run devnet
 pnpm --filter @emp/local-safe-devnet run deploy
 ```
 
-The deploy script prints the values to drop into `apps/web/.env.local`:
+The deploy script prints the values to drop into the repo-root `.env`:
 
 ```
 ETHEREUM_RPC_URL=http://127.0.0.1:8545

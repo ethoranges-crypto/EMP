@@ -215,7 +215,7 @@ There's no public testnet reachable from this repo's usual dev/CI environment, s
 `tools/local-safe-devnet` deploys a real Gnosis Safe (official v1.4.1 bytecode, not a mock) to a
 local Hardhat EVM instead — real contract execution and real on-chain storage, just not a public
 chain. See `tools/local-safe-devnet/README.md` for the two-command setup; the deploy script prints
-the `ETHEREUM_RPC_URL`/`ETHEREUM_TREASURY_ADDRESS` pair to drop into `apps/web/.env.local` plus the
+the `ETHEREUM_RPC_URL`/`ETHEREUM_TREASURY_ADDRESS` pair to drop into the repo-root `.env` plus the
 deployed Safe's address and a test-only owner key. Re-run it whenever `verifyOwner.ts` or the SIWE
 verify route changes, not as a one-off.
 

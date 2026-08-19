@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
+import { loadRootEnvFile } from "@emp/config";
+
+// Run directly via `tsx` (not through loadEnv()), so nothing else has
+// populated process.env yet — load the repo-root .env before constructing
+// PrismaClient, which reads DATABASE_URL from it.
+loadRootEnvFile();
 
 const sqlPath = fileURLToPath(
   new URL("../prisma/sql/partial_unique_indexes.sql", import.meta.url),

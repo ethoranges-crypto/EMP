@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { loadRootEnvFile } from "./rootEnv.js";
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
@@ -48,12 +49,16 @@ let cached: Env | undefined;
  */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (cached) return cached;
+  // Only when reading the real process env (not a test's explicit fixture
+  // object) — see rootEnv.ts for why this is the one place every
+  // app/package's config comes from.
+  if (source === process.env) loadRootEnvFile();
   const result = envSchema.safeParse(source);
   if (!result.success) {
     const issues = result.error.issues.map((issue) => `  - ${issue.path.join(".")}: ${issue.message}`).join("\n");
     throw new Error(
       `Invalid or missing environment variables:\n${issues}\n\n` +
-        `Copy .env.example to .env.local (or .env) and fill in every required value, then restart the dev server.`,
+        `Copy .env.example to .env at the repo root and fill in every required value, then restart.`,
     );
   }
   cached = result.data;

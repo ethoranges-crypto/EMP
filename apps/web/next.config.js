@@ -1,3 +1,32 @@
+const { existsSync } = require("node:fs");
+const path = require("node:path");
+const dotenv = require("dotenv");
+
+// Next.js only auto-loads .env files from this app's own directory, but the
+// monorepo's settings live in one file at the repo root (see
+// packages/config/src/rootEnv.ts, which does the same thing for every
+// server-side app/package). next.config.js runs before Next transpiles
+// workspace TS packages, so it can't import that module directly — this is
+// the one place the same root-finding logic is duplicated in plain JS.
+// Populating process.env here, before Next's own build/dev pipeline starts,
+// is what makes NEXT_PUBLIC_* vars from the root file reach the client
+// bundle (Next inlines any NEXT_PUBLIC_-prefixed var already in process.env
+// at build time).
+function findRepoRoot(startDir) {
+  let dir = startDir;
+  for (;;) {
+    if (existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
+}
+
+const repoRoot = findRepoRoot(__dirname);
+if (repoRoot) {
+  dotenv.config({ path: path.join(repoRoot, ".env") });
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,

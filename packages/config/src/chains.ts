@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { loadRootEnvFile } from "./rootEnv.js";
 
 export type TokenSymbol = "USDC" | "USDT" | "ETH";
 
@@ -52,6 +53,7 @@ let cached: ChainConfig[] | undefined;
  */
 export function getChains(env: NodeJS.ProcessEnv = process.env): ChainConfig[] {
   if (cached) return cached;
+  if (env === process.env) loadRootEnvFile();
 
   cached = CHAIN_DEFINITIONS.flatMap((def): ChainConfig[] => {
     const parsed = chainEnvSchema.parse({

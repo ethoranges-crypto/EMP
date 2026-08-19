@@ -5,7 +5,9 @@ import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { SignInPanel } from "./SignInPanel";
 import { ApplicationPanel } from "./ApplicationPanel";
-import type { ProtocolMe } from "./types";
+import { NewCampaignPanel } from "./NewCampaignPanel";
+import { CampaignsPanel } from "./CampaignsPanel";
+import type { ProtocolCampaign, ProtocolMe } from "./types";
 
 type MeStatus = "loading" | "signed-out" | "signed-in" | "error";
 
@@ -13,6 +15,14 @@ export default function ProtocolJourneyPage() {
   const { isConnected } = useAccount();
   const [me, setMe] = useState<ProtocolMe | null>(null);
   const [meStatus, setMeStatus] = useState<MeStatus>("loading");
+  const [campaigns, setCampaigns] = useState<ProtocolCampaign[]>([]);
+
+  const fetchCampaigns = useCallback(async () => {
+    const res = await fetch("/api/protocol/campaigns");
+    if (!res.ok) return;
+    const data = (await res.json()) as { campaigns: ProtocolCampaign[] };
+    setCampaigns(data.campaigns);
+  }, []);
 
   const fetchMe = useCallback(async () => {
     try {
@@ -44,6 +54,11 @@ export default function ProtocolJourneyPage() {
     const id = setInterval(() => void fetchMe(), 4000);
     return () => clearInterval(id);
   }, [me?.status, me?.name, fetchMe]);
+
+  useEffect(() => {
+    if (me?.status !== "APPROVED") return;
+    void fetchCampaigns();
+  }, [me?.status, fetchCampaigns]);
 
   async function handleSignOut() {
     await fetch("/api/auth/signout", { method: "POST" });
@@ -82,6 +97,12 @@ export default function ProtocolJourneyPage() {
       {meStatus === "signed-in" && me && (
         <div className="flex flex-col gap-6">
           <ApplicationPanel me={me} onChange={() => void fetchMe()} />
+          {me.status === "APPROVED" && (
+            <>
+              <NewCampaignPanel onCreated={() => void fetchCampaigns()} />
+              <CampaignsPanel campaigns={campaigns} />
+            </>
+          )}
           <button
             onClick={handleSignOut}
             className="self-center text-xs text-slate-500 underline underline-offset-4 hover:text-slate-300"

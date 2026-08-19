@@ -139,6 +139,34 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
     assertClean(result, "countMessageableUsers");
   });
 
+  it("countMessageableUsers: matches ANY of several selected categories, not all of them (SPEC §4.3 step 1 — multi-category targeting)", async () => {
+    const otherCategory = await prisma.category.create({ data: { name: "New features", active: true } });
+    const store = createPrismaProtocolQueryStore(prisma);
+    // REAL_WALLET's user only has an interest in `categoryId` (Yields, seeded above) — selecting
+    // a second, unrelated category alongside it should still count them once (OR semantics), not
+    // zero them out for failing to match *every* selected category.
+    const result = await store.countMessageableUsers({
+      categoryIds: [categoryId, otherCategory.id],
+      includeAll: false,
+    });
+    expect(result).toBe(1);
+    assertClean(result, "countMessageableUsers");
+  });
+
+  it("countMessageableUsers: a matching-interest user with no verified Telegram link doesn't inflate the count, and their wallet never surfaces either", async () => {
+    const decoyWallet = "0xdecoy00000000000000000000000000000000";
+    const decoy = await prisma.user.create({ data: { primaryWallet: decoyWallet, accountType: "EOA" } });
+    await prisma.userInterest.create({ data: { userId: decoy.id, categoryId } });
+    // Deliberately no TelegramLink for the decoy — SPEC §7.5: only a *verified* link makes an
+    // account messageable, interest alone isn't enough.
+
+    const store = createPrismaProtocolQueryStore(prisma);
+    const result = await store.countMessageableUsers({ categoryIds: [categoryId], includeAll: false });
+    expect(result).toBe(1); // still just REAL_WALLET's user — the decoy is excluded, not double-counted
+    assertNoForbiddenKeys(result, "$.countMessageableUsers");
+    assertNoLeakedValues(result, [...SECRETS, decoyWallet], "$.countMessageableUsers");
+  });
+
   it("getCampaignSnapshotCount: clean and correct", async () => {
     const store = createPrismaProtocolQueryStore(prisma);
     const result = await store.getCampaignSnapshotCount(campaignId);

@@ -7,5 +7,7 @@ export * from "./protocolQueries/prismaAdapter.js";
 export * from "./campaigns/moderation.js";
 export * from "./campaigns/snapshot.js";
 export * from "./campaigns/prismaSnapshotStore.js";
+export * from "./campaigns/createCampaign.js";
+export * from "./campaigns/prismaCreateCampaignStore.js";
 export * from "./safe/verifyOwner.js";
 export * from "./admin/listPendingProtocols.js";

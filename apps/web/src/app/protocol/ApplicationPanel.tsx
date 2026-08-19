@@ -102,7 +102,7 @@ export function ApplicationPanel({ me, onChange }: { me: ProtocolMe; onChange: (
             ✅
           </span>
           <p className="text-lg font-semibold text-pulse-cyan">&ldquo;{me.name}&rdquo; is approved</p>
-          <p className="text-sm text-slate-300">Campaign creation is coming in the next build stage.</p>
+          <p className="text-sm text-slate-300">You can start a campaign below.</p>
         </div>
       )}
 

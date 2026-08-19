@@ -7,3 +7,10 @@ export interface PendingProtocol {
   safeAddress: string | null;
   createdAt: string;
 }
+
+/** One row from GET /api/admin/categories. */
+export interface AdminCategory {
+  id: string;
+  name: string;
+  active: boolean;
+}

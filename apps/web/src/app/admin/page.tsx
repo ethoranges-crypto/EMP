@@ -5,13 +5,14 @@ import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { SignInPanel } from "./SignInPanel";
 import { ProtocolsPanel } from "./ProtocolsPanel";
-import type { PendingProtocol } from "./types";
+import { CategoriesPanel } from "./CategoriesPanel";
+import type { AdminCategory, PendingProtocol } from "./types";
 
 type ListStatus = "loading" | "signed-out" | "loaded" | "error";
 
 /**
- * Minimum viable admin (SPEC §4.2's approval gate) — just protocol
- * approve/reject for now, not the full admin panel. GET /api/admin/protocols
+ * Minimum viable admin (SPEC §4.2's approval gate + SPEC §7's category
+ * taxonomy) — not the full admin panel yet. GET /api/admin/protocols
  * doubles as both the pending-queue fetch and the "am I signed in as
  * admin" check (a 401 means either), same shape as /user and /protocol.
  */
@@ -19,6 +20,7 @@ export default function AdminPage() {
   const { isConnected } = useAccount();
   const [protocols, setProtocols] = useState<PendingProtocol[]>([]);
   const [listStatus, setListStatus] = useState<ListStatus>("loading");
+  const [categories, setCategories] = useState<AdminCategory[]>([]);
 
   const fetchProtocols = useCallback(async () => {
     try {
@@ -39,9 +41,21 @@ export default function AdminPage() {
     }
   }, []);
 
+  const fetchCategories = useCallback(async () => {
+    const res = await fetch("/api/admin/categories");
+    if (!res.ok) return;
+    const data = (await res.json()) as { categories: AdminCategory[] };
+    setCategories(data.categories);
+  }, []);
+
   useEffect(() => {
     void fetchProtocols();
   }, [fetchProtocols]);
+
+  useEffect(() => {
+    if (listStatus !== "loaded") return;
+    void fetchCategories();
+  }, [listStatus, fetchCategories]);
 
   async function handleSignOut() {
     await fetch("/api/auth/signout", { method: "POST" });
@@ -75,6 +89,7 @@ export default function AdminPage() {
       {listStatus === "loaded" && (
         <div className="flex flex-col gap-6">
           <ProtocolsPanel protocols={protocols} onChange={() => void fetchProtocols()} />
+          <CategoriesPanel categories={categories} onChange={() => void fetchCategories()} />
           <button
             onClick={handleSignOut}
             className="self-center text-xs text-slate-500 underline underline-offset-4 hover:text-slate-300"

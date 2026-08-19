@@ -9,6 +9,7 @@
     "generate": "tsx scripts/with-root-env.ts prisma generate",
     "migrate": "tsx scripts/with-root-env.ts prisma migrate dev && tsx src/applyPartialIndexes.ts",
     "migrate:deploy": "tsx scripts/with-root-env.ts prisma migrate deploy && tsx src/applyPartialIndexes.ts",
+    "seed": "tsx src/seedCategories.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

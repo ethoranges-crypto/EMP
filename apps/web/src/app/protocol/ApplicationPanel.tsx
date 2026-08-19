@@ -66,6 +66,8 @@ function ApplicationForm({
 }
 
 export function ApplicationPanel({ me, onChange }: { me: ProtocolMe; onChange: () => void }) {
+  const [approvedDismissed, setApprovedDismissed] = useState(false);
+
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-white/10 bg-surface p-6">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Application</h2>
@@ -96,8 +98,15 @@ export function ApplicationPanel({ me, onChange }: { me: ProtocolMe; onChange: (
         </div>
       )}
 
-      {me.status === "APPROVED" && (
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-pulse-cyan/50 bg-pulse-cyan/10 px-6 py-8 text-center shadow-glow">
+      {me.status === "APPROVED" && !approvedDismissed && (
+        <div className="relative flex flex-col items-center gap-2 rounded-lg border border-pulse-cyan/50 bg-pulse-cyan/10 px-6 py-8 text-center shadow-glow">
+          <button
+            onClick={() => setApprovedDismissed(true)}
+            aria-label="Dismiss"
+            className="absolute right-3 top-3 text-slate-400 hover:text-slate-100"
+          >
+            ✕
+          </button>
           <span className="text-3xl" aria-hidden>
             ✅
           </span>

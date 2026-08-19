@@ -24,6 +24,13 @@ const envSchema = z.object({
   PAYMENT_WINDOW_MINUTES: z.coerce.number().int().positive().default(60),
 
   REDIRECT_BASE_URL: z.string().url(),
+
+  // Optional — not REDIRECT_BASE_URL (that's specifically the /r/:token
+  // click-redirect prefix). Lets apps/bot's link-confirmation message
+  // include a tappable link back to the site; if unset, the bot just says
+  // "head back to the EMP site" without a link rather than failing to
+  // start. See apps/bot/src/handlers/start.ts.
+  WEB_BASE_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

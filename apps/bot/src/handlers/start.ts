@@ -47,7 +47,19 @@ export function registerStartHandler(bot: Bot): void {
         cooldownDays: env.RELINK_COOLDOWN_DAYS,
       });
       await linkRequestStore.deleteById(redemption.requestId);
-      await ctx.reply("You're linked! You'll get messages here based on the interests you picked.");
+      // The web tab (if still open) already picks this up live via
+      // /api/user/me polling, but this reply is the only cue at all for a
+      // user who left EMP to switch to Telegram (esp. on mobile, where
+      // Telegram took over the screen) — so it always tells them where to
+      // go next, and includes a tappable link back when the site's public
+      // URL is configured (Telegram auto-links a bare https:// URL in plain
+      // text, no parse_mode needed).
+      const returnHint = env.WEB_BASE_URL
+        ? `Head back to the EMP site to see your status:\n${env.WEB_BASE_URL}/user`
+        : "Head back to the EMP site to see your status.";
+      await ctx.reply(
+        `You're linked! 📡 You'll get messages here based on the interests you picked.\n\n${returnHint}`,
+      );
     } catch (err) {
       if (err instanceof AlreadyBoundError || err instanceof AlreadyLinkedError || err instanceof CooldownActiveError) {
         // Recorded (not just replied) so the web page the user still has

@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { SignInPanel } from "./SignInPanel";
 import { InterestsPanel } from "./InterestsPanel";
 import { TelegramPanel } from "./TelegramPanel";
 import { MessageableBadge } from "./MessageableBadge";
-import type { UserMe } from "./types";
+import type { TelegramLinkStatus, UserMe } from "./types";
 
 type MeStatus = "loading" | "signed-out" | "signed-in" | "error";
 
@@ -15,6 +15,13 @@ export default function UserJourneyPage() {
   const { isConnected } = useAccount();
   const [me, setMe] = useState<UserMe | null>(null);
   const [meStatus, setMeStatus] = useState<MeStatus>("loading");
+  // True only for the poll that catches pending -> linked live (apps/bot
+  // confirmed the code while this tab was open) — not for a returning
+  // visit that's already linked. That's what makes the big TelegramPanel
+  // success state a "you just did this" confirmation rather than noise
+  // shown on every page load.
+  const [justLinked, setJustLinked] = useState(false);
+  const prevTelegramLinkStatus = useRef<TelegramLinkStatus | undefined>(undefined);
 
   const fetchMe = useCallback(async () => {
     try {
@@ -46,6 +53,14 @@ export default function UserJourneyPage() {
     const id = setInterval(() => void fetchMe(), 4000);
     return () => clearInterval(id);
   }, [me?.telegramLinkStatus, fetchMe]);
+
+  useEffect(() => {
+    if (!me) return;
+    if (prevTelegramLinkStatus.current === "pending" && me.telegramLinkStatus === "linked") {
+      setJustLinked(true);
+    }
+    prevTelegramLinkStatus.current = me.telegramLinkStatus;
+  }, [me]);
 
   async function handleSignOut() {
     await fetch("/api/auth/signout", { method: "POST" });
@@ -85,7 +100,7 @@ export default function UserJourneyPage() {
         <div className="flex flex-col gap-6">
           <MessageableBadge messageable={me.messageable} telegramLinkStatus={me.telegramLinkStatus} />
           <InterestsPanel />
-          <TelegramPanel me={me} onChange={() => void fetchMe()} />
+          <TelegramPanel me={me} onChange={() => void fetchMe()} justLinked={justLinked} />
           <button
             onClick={handleSignOut}
             className="self-center text-xs text-slate-500 underline underline-offset-4 hover:text-slate-300"

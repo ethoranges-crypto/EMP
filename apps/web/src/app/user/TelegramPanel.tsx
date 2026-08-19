@@ -22,7 +22,22 @@ function useCountdown(expiresAt: string | undefined): string | null {
   return `${minutes}:${seconds}`;
 }
 
-export function TelegramPanel({ me, onChange }: { me: UserMe; onChange: () => void }) {
+export function TelegramPanel({
+  me,
+  onChange,
+  justLinked = false,
+}: {
+  me: UserMe;
+  onChange: () => void;
+  /**
+   * Set only for the poll that catches the pending -> linked transition
+   * live — renders a big, unmissable confirmation instead of the quiet
+   * status line, since a user coming back from Telegram (especially on
+   * mobile, where the bot's reply was their only cue to switch back) needs
+   * something more obvious than a small badge change to know it worked.
+   */
+  justLinked?: boolean;
+}) {
   const [requesting, setRequesting] = useState(false);
   const countdown = useCountdown(me.telegramLinkStatus === "pending" ? me.codeExpiresAt : undefined);
 
@@ -37,7 +52,22 @@ export function TelegramPanel({ me, onChange }: { me: UserMe; onChange: () => vo
     <section className="flex flex-col gap-3 rounded-xl border border-white/10 bg-surface p-6">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Telegram</h2>
 
-      {me.telegramLinkStatus === "linked" && (
+      {me.telegramLinkStatus === "linked" && justLinked && (
+        <div
+          role="status"
+          className="flex flex-col items-center gap-2 rounded-lg border border-pulse-cyan/50 bg-pulse-cyan/10 px-6 py-8 text-center shadow-glow"
+        >
+          <span className="text-3xl" aria-hidden>
+            📡
+          </span>
+          <p className="text-lg font-semibold text-pulse-cyan">You&apos;re linked and all set</p>
+          <p className="text-sm text-slate-300">
+            Telegram is connected. You&apos;ll get messages here based on the interests you pick below.
+          </p>
+        </div>
+      )}
+
+      {me.telegramLinkStatus === "linked" && !justLinked && (
         <p className="text-sm text-pulse-cyan">✓ Linked — you&apos;ll get messages here based on your interests.</p>
       )}
 

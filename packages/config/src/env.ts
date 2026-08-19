@@ -5,8 +5,6 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1),
 
   SESSION_SECRET: z.string().min(32),
-  SIWE_DOMAIN: z.string().min(1),
-  SIWE_URI: z.string().url(),
   ADMIN_WALLETS: z
     .string()
     .default("")

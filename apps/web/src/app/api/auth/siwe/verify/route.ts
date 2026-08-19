@@ -28,12 +28,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No pending nonce — call /api/auth/siwe/nonce first" }, { status: 400 });
   }
 
+  // The client embeds window.location.host as the message's domain (see
+  // useSiwe.ts) — checking against this request's own Host header, rather
+  // than a static config value, means those two are guaranteed to be the
+  // same thing by construction, for every host this app is ever served on.
+  const requestHost = request.headers.get("host");
+  if (!requestHost) {
+    return NextResponse.json({ error: "Missing Host header" }, { status: 400 });
+  }
+
   let address: string;
   try {
     const siwe = await verifySiwe({
       message: body.message,
       signature: body.signature,
       expectedNonce: session.nonce,
+      expectedDomain: requestHost,
     });
     address = siwe.address;
   } catch {

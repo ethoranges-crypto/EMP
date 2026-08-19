@@ -7,6 +7,7 @@ import type { TelegramLinkStatus } from "./types";
  * see /api/user/me), it's here only so this stays a total function.
  */
 const NEXT_STEP: Record<TelegramLinkStatus, string> = {
+  not_configured: "Telegram isn't set up on this deployment yet",
   none: "Link Telegram to start receiving messages",
   pending: "Waiting for Telegram confirmation",
   rejected: "Telegram link failed — try again below",

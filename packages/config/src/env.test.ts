@@ -5,8 +5,6 @@ const VALID_ENV: NodeJS.ProcessEnv = {
   DATABASE_URL: "postgresql://emp:emp@localhost:5432/emp",
   REDIS_URL: "redis://localhost:6379",
   SESSION_SECRET: "0".repeat(32),
-  SIWE_DOMAIN: "localhost:3000",
-  SIWE_URI: "http://localhost:3000",
   TELEGRAM_BOT_TOKEN: "dummy-token",
   TELEGRAM_BOT_USERNAME: "EmpDevBot",
   REDIRECT_BASE_URL: "http://localhost:3000/r",

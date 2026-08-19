@@ -66,8 +66,6 @@ jobs:
           # Dummy values so apps/web's `next build` env validation passes —
           # nothing here needs to be real for a build-only check.
           SESSION_SECRET: ci-build-only-dummy-secret-not-used-at-runtime
-          SIWE_DOMAIN: localhost:3000
-          SIWE_URI: http://localhost:3000
           TELEGRAM_BOT_TOKEN: ci-dummy
           TELEGRAM_BOT_USERNAME: ci-dummy
           REDIRECT_BASE_URL: http://localhost:3000/r

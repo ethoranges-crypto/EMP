@@ -41,6 +41,13 @@ export function TelegramPanel({ me, onChange }: { me: UserMe; onChange: () => vo
         <p className="text-sm text-pulse-cyan">✓ Linked — you&apos;ll get messages here based on your interests.</p>
       )}
 
+      {me.telegramLinkStatus === "not_configured" && (
+        <p className="text-sm text-slate-500">
+          Telegram isn&apos;t set up on this deployment yet — there&apos;s no bot to link to. Nothing to do here
+          until an operator configures one.
+        </p>
+      )}
+
       {me.telegramLinkStatus === "none" && (
         <>
           <p className="text-sm text-slate-400">

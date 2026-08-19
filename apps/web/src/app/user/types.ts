@@ -1,4 +1,4 @@
-export type TelegramLinkStatus = "none" | "pending" | "rejected" | "expired" | "linked";
+export type TelegramLinkStatus = "not_configured" | "none" | "pending" | "rejected" | "expired" | "linked";
 
 /** Mirrors GET /api/user/me's response shape exactly. */
 export interface UserMe {

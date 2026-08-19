@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@emp/db";
-import { loadEnv } from "@emp/config";
+import { isValidTelegramBotUsername, loadEnv } from "@emp/config";
 import { UnauthorizedError, requireRole } from "@/lib/session";
 
-type TelegramLinkStatus = "none" | "pending" | "rejected" | "expired" | "linked";
+type TelegramLinkStatus = "not_configured" | "none" | "pending" | "rejected" | "expired" | "linked";
 
 /**
  * Aggregated self-service status for the user journey UI: wallet identity,
@@ -34,7 +34,12 @@ export async function GET() {
     let deepLink: string | undefined;
     let codeExpiresAt: string | undefined;
 
-    if (!messageable) {
+    if (!messageable && !isValidTelegramBotUsername(env.TELEGRAM_BOT_USERNAME)) {
+      // Nothing downstream can complete regardless of any LinkRequest state
+      // — don't even look, and don't hand back a t.me link to a bot that
+      // (as far as we can tell without a live getMe() call) doesn't exist.
+      telegramLinkStatus = "not_configured";
+    } else if (!messageable) {
       const latestRequest = await prisma.linkRequest.findFirst({
         where: { userId: accountId },
         orderBy: { createdAt: "desc" },

@@ -32,11 +32,15 @@ export interface ProtocolCampaign {
   createdAt: string;
 }
 
-/** A CTA as returned by the campaign detail/compose-save endpoints — already wrapped in its /r/:token redirect. */
+/**
+ * A CTA as returned by GET /api/protocol/campaigns/[id]. Deliberately no
+ * redirect token/URL here — it's wrapped on save (SPEC §8) but never
+ * surfaced back to the protocol; see that route's own comment.
+ */
 export interface CampaignCta {
+  id: string;
   label: string;
   targetUrl: string;
-  redirectUrl: string;
 }
 
 /** GET /api/protocol/campaigns/[id]'s response shape. */

@@ -1,3 +1,5 @@
+import { CTA_LABEL_MAX_LENGTH, MAX_CTAS_PER_CAMPAIGN, telegramTextLimit } from "@emp/config";
+
 export class CampaignNotFoundError extends Error {
   constructor(campaignId: string) {
     super(`Campaign ${campaignId} not found.`);
@@ -23,6 +25,22 @@ export class InvalidCtaError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "InvalidCtaError";
+  }
+}
+
+export class TooManyCtasError extends Error {
+  constructor() {
+    super(`At most ${MAX_CTAS_PER_CAMPAIGN} CTAs are allowed per campaign.`);
+    this.name = "TooManyCtasError";
+  }
+}
+
+export class MessageTooLongError extends Error {
+  constructor(length: number, limit: number, hasImage: boolean) {
+    super(
+      `Message text is ${length} characters — the limit is ${limit}${hasImage ? " with an image attached" : ""} (Telegram's own sendMessage/sendPhoto limits).`,
+    );
+    this.name = "MessageTooLongError";
   }
 }
 
@@ -79,6 +97,13 @@ function assertValidTargetUrl(raw: string): void {
  * DRAFT — SPEC's moderate -> pay -> send ordering (CLAUDE.md rule 2) means
  * compose content must be locked in before it reaches an admin, not
  * editable out from under a review or an already-approved snapshot.
+ *
+ * Enforces Telegram's real message/caption limits (packages/config's
+ * telegramTextLimit — 4096 chars with no image, 1024 with one, since an
+ * image forces the text into sendPhoto's caption) plus MAX_CTAS_PER_CAMPAIGN
+ * and CTA_LABEL_MAX_LENGTH. The client-side compose UI checks the same
+ * numbers for a live counter, but this is the check that actually holds —
+ * never trust the client's arithmetic alone.
  */
 export async function saveCampaignCompose(port: ComposePort, params: SaveComposeParams): Promise<{ ctas: SavedCta[] }> {
   const campaign = await port.getCampaignOwnerAndStatus(params.campaignId);
@@ -86,8 +111,18 @@ export async function saveCampaignCompose(port: ComposePort, params: SaveCompose
   if (campaign.protocolId !== params.protocolId) throw new CampaignNotOwnedError(params.campaignId);
   if (campaign.status !== "DRAFT") throw new CampaignNotEditableError(campaign.status);
 
+  const hasImage = params.imageUrl !== null && params.imageUrl.length > 0;
+  const textLimit = telegramTextLimit(hasImage);
+  const bodyLength = (params.bodyText ?? "").length;
+  if (bodyLength > textLimit) throw new MessageTooLongError(bodyLength, textLimit, hasImage);
+
+  if (params.ctas.length > MAX_CTAS_PER_CAMPAIGN) throw new TooManyCtasError();
+
   for (const cta of params.ctas) {
     if (cta.label.trim().length === 0) throw new InvalidCtaError("Every CTA needs a label.");
+    if (cta.label.length > CTA_LABEL_MAX_LENGTH) {
+      throw new InvalidCtaError(`CTA label "${cta.label}" is too long (max ${CTA_LABEL_MAX_LENGTH} characters).`);
+    }
     assertValidTargetUrl(cta.targetUrl);
   }
 

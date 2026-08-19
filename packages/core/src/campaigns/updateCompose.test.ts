@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { CTA_LABEL_MAX_LENGTH, MAX_CTAS_PER_CAMPAIGN, TELEGRAM_TEXT_LIMIT_NO_IMAGE, TELEGRAM_TEXT_LIMIT_WITH_IMAGE } from "@emp/config";
 import {
   saveCampaignCompose,
   CampaignNotFoundError,
   CampaignNotOwnedError,
   CampaignNotEditableError,
   InvalidCtaError,
+  MessageTooLongError,
+  TooManyCtasError,
   type ComposePort,
 } from "./updateCompose.js";
 
@@ -93,6 +96,67 @@ describe("saveCampaignCompose — SPEC §4.3 step 2 / §8", () => {
     const port = createFakePort();
     const result = await saveCampaignCompose(port, { ...baseParams, ctas: [] });
     expect(result.ctas).toEqual([]);
+  });
+
+  it("allows message text right at the no-image limit (4096 chars)", async () => {
+    const port = createFakePort();
+    const result = await saveCampaignCompose(port, { ...baseParams, bodyText: "a".repeat(TELEGRAM_TEXT_LIMIT_NO_IMAGE) });
+    expect(result.ctas).toHaveLength(1);
+  });
+
+  it("rejects message text one character over the no-image limit", async () => {
+    const port = createFakePort();
+    await expect(
+      saveCampaignCompose(port, { ...baseParams, bodyText: "a".repeat(TELEGRAM_TEXT_LIMIT_NO_IMAGE + 1) }),
+    ).rejects.toThrow(MessageTooLongError);
+  });
+
+  it("applies the shorter WITH-image limit (1024) once imageUrl is set, even if the text would fit the no-image limit", async () => {
+    const port = createFakePort();
+    const bodyText = "a".repeat(TELEGRAM_TEXT_LIMIT_WITH_IMAGE + 1);
+    await expect(
+      saveCampaignCompose(port, { ...baseParams, bodyText, imageUrl: "https://example.com/banner.png" }),
+    ).rejects.toThrow(MessageTooLongError);
+    // The same text is fine without an image — proves it's the image that changed the limit, not the length alone.
+    await expect(saveCampaignCompose(port, { ...baseParams, bodyText, imageUrl: null })).resolves.toBeDefined();
+  });
+
+  it("rejects a CTA label over CTA_LABEL_MAX_LENGTH", async () => {
+    const port = createFakePort();
+    await expect(
+      saveCampaignCompose(port, {
+        ...baseParams,
+        ctas: [{ label: "a".repeat(CTA_LABEL_MAX_LENGTH + 1), targetUrl: "https://example.com" }],
+      }),
+    ).rejects.toThrow(InvalidCtaError);
+  });
+
+  it("allows a CTA label at exactly CTA_LABEL_MAX_LENGTH", async () => {
+    const port = createFakePort();
+    const result = await saveCampaignCompose(port, {
+      ...baseParams,
+      ctas: [{ label: "a".repeat(CTA_LABEL_MAX_LENGTH), targetUrl: "https://example.com" }],
+    });
+    expect(result.ctas).toHaveLength(1);
+  });
+
+  it("rejects more than MAX_CTAS_PER_CAMPAIGN CTAs", async () => {
+    const port = createFakePort();
+    const tooMany = Array.from({ length: MAX_CTAS_PER_CAMPAIGN + 1 }, (_, i) => ({
+      label: `CTA ${i}`,
+      targetUrl: "https://example.com",
+    }));
+    await expect(saveCampaignCompose(port, { ...baseParams, ctas: tooMany })).rejects.toThrow(TooManyCtasError);
+  });
+
+  it("allows exactly MAX_CTAS_PER_CAMPAIGN CTAs", async () => {
+    const port = createFakePort();
+    const exactly = Array.from({ length: MAX_CTAS_PER_CAMPAIGN }, (_, i) => ({
+      label: `CTA ${i}`,
+      targetUrl: "https://example.com",
+    }));
+    const result = await saveCampaignCompose(port, { ...baseParams, ctas: exactly });
+    expect(result.ctas).toHaveLength(MAX_CTAS_PER_CAMPAIGN);
   });
 
   it("checks ownership/editability before ever validating CTA content", async () => {

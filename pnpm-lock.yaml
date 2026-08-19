@@ -162,6 +162,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@emp/config':
+        specifier: workspace:*
+        version: link:../config
       '@emp/db':
         specifier: workspace:*
         version: link:../db

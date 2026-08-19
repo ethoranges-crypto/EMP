@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { CampaignCta, CampaignDetail } from "./types";
+import { useEffect, useMemo, useState } from "react";
+import { CTA_LABEL_MAX_LENGTH, MAX_CTAS_PER_CAMPAIGN, telegramTextLimit } from "@emp/config/telegramLimits";
+import type { CampaignDetail } from "./types";
+import { MessagePreview } from "./MessagePreview";
 
 interface CtaDraft {
   label: string;
@@ -9,10 +11,11 @@ interface CtaDraft {
 }
 
 /**
- * SPEC §4.3 step 2 / §8: text, optional image, one or more CTAs — saved
- * onto the existing DRAFT campaign. Every CTA the protocol enters here
- * comes back wrapped in a /r/:token tracking link once saved; nothing
- * downstream (moderation, send) is built yet.
+ * SPEC §4.3 step 2 / §8: text, optional image, up to MAX_CTAS_PER_CAMPAIGN
+ * CTAs — saved onto the existing DRAFT campaign. The preview on the right
+ * shows exactly what the recipient will see; the /r/:token wrapping that
+ * happens on save is intentionally invisible here (SPEC §8 handles it, the
+ * protocol just needs to know links are tracked, not the tokens themselves).
  */
 export function ComposePanel({
   campaignId,
@@ -27,7 +30,6 @@ export function ComposePanel({
   const [bodyText, setBodyText] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [ctas, setCtas] = useState<CtaDraft[]>([]);
-  const [savedCtas, setSavedCtas] = useState<CampaignCta[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,15 +41,25 @@ export function ComposePanel({
         setBodyText(data.bodyText ?? "");
         setImageUrl(data.imageUrl ?? "");
         setCtas(data.ctas.map((c) => ({ label: c.label, targetUrl: c.targetUrl })));
-        setSavedCtas(data.ctas);
       });
   }, [campaignId]);
+
+  const hasImage = imageUrl.trim().length > 0;
+  const textLimit = telegramTextLimit(hasImage);
+  const textOverLimit = bodyText.length > textLimit;
+  const atCtaCap = ctas.length >= MAX_CTAS_PER_CAMPAIGN;
+
+  const canSave = useMemo(
+    () => !textOverLimit && ctas.every((c) => c.label.length <= CTA_LABEL_MAX_LENGTH),
+    [textOverLimit, ctas],
+  );
 
   function updateCta(index: number, field: keyof CtaDraft, value: string) {
     setCtas((prev) => prev.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
   }
 
   function addCta() {
+    if (atCtaCap) return;
     setCtas((prev) => [...prev, { label: "", targetUrl: "" }]);
   }
 
@@ -69,8 +81,6 @@ export function ComposePanel({
       setError(data.error ?? "Could not save.");
       return;
     }
-    const data = (await res.json()) as { ctas: CampaignCta[] };
-    setSavedCtas(data.ctas);
     onSaved();
   }
 
@@ -93,85 +103,113 @@ export function ComposePanel({
         </button>
       </div>
 
-      <label className="flex flex-col gap-1 text-sm text-slate-300">
-        Message text
-        <textarea
-          value={bodyText}
-          onChange={(e) => setBodyText(e.target.value)}
-          rows={4}
-          className="rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100 outline-none focus:border-pulse-violet/50"
-        />
-      </label>
-
-      <label className="flex flex-col gap-1 text-sm text-slate-300">
-        Image URL (optional)
-        <input
-          type="text"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder="https://…"
-          className="rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100 outline-none focus:border-pulse-violet/50"
-        />
-      </label>
-
-      <div className="flex flex-col gap-2">
-        <p className="text-sm text-slate-300">CTAs</p>
-        {ctas.map((cta, i) => (
-          <div key={i} className="flex gap-2">
-            <input
-              type="text"
-              value={cta.label}
-              onChange={(e) => updateCta(i, "label", e.target.value)}
-              placeholder="Label (e.g. Claim)"
-              className="w-32 rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100 outline-none focus:border-pulse-violet/50"
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_280px]">
+        <div className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1 text-sm text-slate-300">
+            <div className="flex items-center justify-between">
+              <span>Message text</span>
+              <span className={`text-xs ${textOverLimit ? "text-red-400" : "text-slate-500"}`}>
+                {bodyText.length} / {textLimit}
+              </span>
+            </div>
+            <textarea
+              value={bodyText}
+              onChange={(e) => setBodyText(e.target.value)}
+              rows={4}
+              className={`rounded-md border bg-void px-3 py-2 text-sm text-slate-100 outline-none focus:border-pulse-violet/50 ${
+                textOverLimit ? "border-red-500/60" : "border-white/10"
+              }`}
             />
+            {hasImage && (
+              <span className="text-xs text-slate-500">
+                An image attaches this text as a caption, which Telegram caps lower than a plain message.
+              </span>
+            )}
+          </label>
+
+          <label className="flex flex-col gap-1 text-sm text-slate-300">
+            Image URL (optional)
             <input
               type="text"
-              value={cta.targetUrl}
-              onChange={(e) => updateCta(i, "targetUrl", e.target.value)}
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
               placeholder="https://…"
-              className="min-w-0 flex-1 rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100 outline-none focus:border-pulse-violet/50"
+              className="rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100 outline-none focus:border-pulse-violet/50"
             />
+          </label>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-slate-300">CTAs</p>
+              <span className="text-xs text-slate-500">
+                {ctas.length} / {MAX_CTAS_PER_CAMPAIGN}
+              </span>
+            </div>
+            {ctas.map((cta, i) => {
+              const labelOverLimit = cta.label.length > CTA_LABEL_MAX_LENGTH;
+              return (
+                <div key={i} className="flex flex-col gap-1">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={cta.label}
+                      onChange={(e) => updateCta(i, "label", e.target.value)}
+                      placeholder="Label (e.g. Claim)"
+                      className={`w-32 rounded-md border bg-void px-3 py-2 text-sm text-slate-100 outline-none focus:border-pulse-violet/50 ${
+                        labelOverLimit ? "border-red-500/60" : "border-white/10"
+                      }`}
+                    />
+                    <input
+                      type="text"
+                      value={cta.targetUrl}
+                      onChange={(e) => updateCta(i, "targetUrl", e.target.value)}
+                      placeholder="https://…"
+                      className="min-w-0 flex-1 rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100 outline-none focus:border-pulse-violet/50"
+                    />
+                    <button
+                      onClick={() => removeCta(i)}
+                      className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-100 hover:bg-white/20"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  {labelOverLimit && (
+                    <span className="text-xs text-red-400">Max {CTA_LABEL_MAX_LENGTH} characters.</span>
+                  )}
+                </div>
+              );
+            })}
             <button
-              onClick={() => removeCta(i)}
-              className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-100 hover:bg-white/20"
+              onClick={addCta}
+              disabled={atCtaCap}
+              className="self-start rounded-full bg-white/10 px-4 py-1.5 text-sm text-slate-100 hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Remove
+              + Add CTA
             </button>
           </div>
-        ))}
-        <button
-          onClick={addCta}
-          className="self-start rounded-full bg-white/10 px-4 py-1.5 text-sm text-slate-100 hover:bg-white/20"
-        >
-          + Add CTA
-        </button>
-      </div>
 
-      <button
-        onClick={() => void save()}
-        disabled={saving}
-        className="self-start rounded-full bg-pulse-violet px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow disabled:opacity-50"
-      >
-        {saving ? "Saving…" : "Save draft"}
-      </button>
+          <button
+            onClick={() => void save()}
+            disabled={saving || !canSave}
+            className="self-start rounded-full bg-pulse-violet px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save draft"}
+          </button>
 
-      {error && (
-        <p role="alert" className="text-sm text-red-400">
-          {error}
-        </p>
-      )}
-
-      {savedCtas.length > 0 && (
-        <div className="flex flex-col gap-1 rounded-lg border border-white/10 bg-void/40 p-3">
-          <p className="text-xs text-slate-500">Tracking links (auto-wrapped, SPEC §8 — this is what gets sent):</p>
-          {savedCtas.map((c) => (
-            <p key={c.redirectUrl} className="break-all text-xs text-pulse-cyan">
-              {c.label}: {c.redirectUrl}
+          {error && (
+            <p role="alert" className="text-sm text-red-400">
+              {error}
             </p>
-          ))}
+          )}
+
+          <p className="text-xs text-slate-500">Links are tracked — delivered/click metrics land on your dashboard.</p>
         </div>
-      )}
+
+        <div className="flex flex-col gap-2">
+          <p className="text-center text-xs uppercase tracking-wide text-slate-500">Preview</p>
+          <MessagePreview bodyText={bodyText} imageUrl={imageUrl} ctas={ctas} />
+        </div>
+      </div>
     </section>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
-import { useSiweSignIn } from "./useSiwe";
+import { useSiweSignIn } from "@/lib/useSiwe";
 import { SAFE_CHAIN_OPTIONS, chainKeyForChainId } from "@/lib/wagmiConfig";
 
 const BUTTON_LABEL: Record<string, string> = {

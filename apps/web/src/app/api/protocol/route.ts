@@ -22,6 +22,7 @@ export async function GET() {
       name: protocol.name,
       status: protocol.status,
       approvalNotes: protocol.approvalNotes,
+      approvedBannerDismissed: protocol.approvedBannerDismissed,
     });
   } catch (err) {
     if (err instanceof UnauthorizedError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

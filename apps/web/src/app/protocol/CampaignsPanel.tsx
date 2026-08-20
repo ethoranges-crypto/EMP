@@ -18,13 +18,13 @@ export function CampaignsPanel({
         {campaigns.map((c) => (
           <div key={c.id} className="flex flex-col gap-1 rounded-lg border border-white/10 bg-void/40 p-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-100">{c.categoryNames.join(", ") || "—"}</span>
+              <span className="text-sm font-medium text-slate-100">{c.title}</span>
               <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-slate-400">
                 {c.status}
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              {c.chain} · {c.token} · {new Date(c.createdAt).toLocaleString()}
+              {c.categoryNames.join(", ") || "—"} · {c.chain} · {c.token} · {new Date(c.createdAt).toLocaleString()}
             </p>
             <p className="text-xs text-slate-600">
               {c.hasComposeContent

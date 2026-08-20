@@ -1,5 +1,5 @@
 import type { Bot } from "grammy";
-import { InlineKeyboard } from "grammy";
+import { InlineKeyboard, InputFile } from "grammy";
 
 export interface CtaButton {
   label: string;
@@ -10,7 +10,12 @@ export interface CtaButton {
 export interface SendCampaignMessageParams {
   chatId: string;
   text: string;
-  imageUrl?: string;
+  /**
+   * Raw image bytes, not a URL — the campaign image is stored in EMP's own
+   * DB (packages/db's Campaign.imageData), not hosted anywhere Telegram's
+   * servers could fetch from, so it's uploaded to Telegram directly here.
+   */
+  imageData?: Buffer;
   ctas: CtaButton[];
 }
 
@@ -27,8 +32,8 @@ export async function sendCampaignMessage(bot: Bot, params: SendCampaignMessageP
   const keyboard = params.ctas.reduce((kb, cta) => kb.url(cta.label, cta.redirectUrl).row(), new InlineKeyboard());
 
   try {
-    if (params.imageUrl) {
-      await bot.api.sendPhoto(params.chatId, params.imageUrl, {
+    if (params.imageData) {
+      await bot.api.sendPhoto(params.chatId, new InputFile(params.imageData), {
         caption: params.text,
         reply_markup: keyboard,
       });

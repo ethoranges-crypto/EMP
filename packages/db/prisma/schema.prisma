@@ -178,15 +178,18 @@ model TelegramLinkHistory {
 }
 
 model Protocol {
-  id            String         @id @default(cuid())
-  wallet        String         @unique
+  id                      String         @id @default(cuid())
+  wallet                  String         @unique
   /// The signing address — an owner EOA when accountType is SAFE, same as User.primaryWallet.
-  accountType   AccountType    @default(EOA)
-  safeAddress   String?
-  name          String
-  status        ProtocolStatus @default(PENDING)
-  approvalNotes String?
-  createdAt     DateTime       @default(now())
+  accountType             AccountType    @default(EOA)
+  safeAddress             String?
+  name                    String
+  status                  ProtocolStatus @default(PENDING)
+  approvalNotes           String?
+  /// Persists the "you're approved" banner's dismissal across logins — a
+  /// client-only dismiss would reappear on every fresh session.
+  approvedBannerDismissed Boolean        @default(false)
+  createdAt               DateTime       @default(now())
 
   campaigns Campaign[]
 
@@ -197,10 +200,19 @@ model Campaign {
   id            String         @id @default(cuid())
   protocolId    String
   status        CampaignStatus @default(DRAFT)
+  /// Required at creation (SPEC §4.3 step 1) — without it, campaigns
+  /// targeting the same categories are indistinguishable in any list.
+  title         String
   chain         String
   token         TokenSymbol
   bodyText      String?
-  imageUrl      String?
+  /// Uploaded, not a pasted URL — the protocol never has to host the
+  /// image itself. Stored as bytes (not on disk/object storage) so it
+  /// works the same in local dev and in prod with zero extra infra, and
+  /// so the eventual Telegram send can upload the bytes directly instead
+  /// of depending on Telegram's servers being able to fetch a URL.
+  imageData     Bytes?
+  imageMimeType String?
   /// Set once, at IN_REVIEW -> APPROVED (SPEC §4.3 step 5). Immutable after.
   snapshotCount Int?
   /// flat_cost_per_user * snapshotCount, locked at the same moment.

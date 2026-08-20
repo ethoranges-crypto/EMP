@@ -83,7 +83,7 @@ async function sendCampaignOnPaymentVerified(
       recipientId: recipient.id,
       chatId: recipient.chatId,
       text: campaign.bodyText ?? "",
-      imageUrl: campaign.imageUrl ?? undefined,
+      imageBase64: campaign.imageData ? Buffer.from(campaign.imageData).toString("base64") : undefined,
       ctas,
     },
   }));

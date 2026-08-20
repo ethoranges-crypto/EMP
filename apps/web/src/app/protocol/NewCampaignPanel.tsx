@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CAMPAIGN_TITLE_MAX_LENGTH } from "@emp/config/campaignLimits";
 import { SAFE_CHAIN_OPTIONS } from "@/lib/wagmiConfig";
 import type { Category, TokenSymbol } from "./types";
 
@@ -14,6 +15,7 @@ const TOKEN_OPTIONS: TokenSymbol[] = ["USDC", "USDT", "ETH"];
  * is the next stage — this only collects categories + chain/token.
  */
 export function NewCampaignPanel({ onCreated }: { onCreated: () => void }) {
+  const [title, setTitle] = useState("");
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [chain, setChain] = useState<string>(SAFE_CHAIN_OPTIONS[0].key);
@@ -75,7 +77,7 @@ export function NewCampaignPanel({ onCreated }: { onCreated: () => void }) {
     const res = await fetch("/api/protocol/campaigns", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ categoryIds: Array.from(selected), chain, token }),
+      body: JSON.stringify({ title, categoryIds: Array.from(selected), chain, token }),
     });
     setSubmitting(false);
     if (!res.ok) {
@@ -83,6 +85,7 @@ export function NewCampaignPanel({ onCreated }: { onCreated: () => void }) {
       setError(data.error ?? "Could not create the campaign.");
       return;
     }
+    setTitle("");
     setSelected(new Set());
     setAudienceCount(null);
     onCreated();
@@ -91,6 +94,18 @@ export function NewCampaignPanel({ onCreated }: { onCreated: () => void }) {
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-white/10 bg-surface p-6">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">New campaign</h2>
+
+      <label className="flex flex-col gap-1 text-sm text-slate-300">
+        Campaign title
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={CAMPAIGN_TITLE_MAX_LENGTH}
+          placeholder="e.g. Yield Boost Launch"
+          className="rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100 outline-none focus:border-pulse-violet/50"
+        />
+      </label>
 
       {categories === null && <p className="text-sm text-slate-500">Loading categories…</p>}
 
@@ -160,7 +175,7 @@ export function NewCampaignPanel({ onCreated }: { onCreated: () => void }) {
 
       <button
         onClick={submit}
-        disabled={submitting || selected.size === 0}
+        disabled={submitting || selected.size === 0 || title.trim().length === 0}
         className="self-start rounded-full bg-pulse-violet px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow disabled:opacity-50"
       >
         {submitting ? "Creating…" : "Create draft campaign"}

@@ -92,6 +92,7 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
     const campaign = await prisma.campaign.create({
       data: {
         protocolId: protocol.id,
+        title: "Test Campaign",
         status: "SENDING",
         chain: "ETHEREUM",
         token: "USDC",

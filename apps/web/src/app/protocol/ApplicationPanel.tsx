@@ -66,7 +66,14 @@ function ApplicationForm({
 }
 
 export function ApplicationPanel({ me, onChange }: { me: ProtocolMe; onChange: () => void }) {
-  const [approvedDismissed, setApprovedDismissed] = useState(false);
+  const [dismissing, setDismissing] = useState(false);
+
+  async function dismissApprovedBanner() {
+    setDismissing(true);
+    await fetch("/api/protocol/dismiss-approved-banner", { method: "POST" });
+    setDismissing(false);
+    onChange();
+  }
 
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-white/10 bg-surface p-6">
@@ -98,12 +105,13 @@ export function ApplicationPanel({ me, onChange }: { me: ProtocolMe; onChange: (
         </div>
       )}
 
-      {me.status === "APPROVED" && !approvedDismissed && (
+      {me.status === "APPROVED" && !me.approvedBannerDismissed && (
         <div className="relative flex flex-col items-center gap-2 rounded-lg border border-pulse-cyan/50 bg-pulse-cyan/10 px-6 py-8 text-center shadow-glow">
           <button
-            onClick={() => setApprovedDismissed(true)}
+            onClick={() => void dismissApprovedBanner()}
+            disabled={dismissing}
             aria-label="Dismiss"
-            className="absolute right-3 top-3 text-slate-400 hover:text-slate-100"
+            className="absolute right-3 top-3 text-slate-400 hover:text-slate-100 disabled:opacity-50"
           >
             ✕
           </button>

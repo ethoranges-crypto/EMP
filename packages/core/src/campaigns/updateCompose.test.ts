@@ -13,7 +13,7 @@ import {
 
 function createFakePort(overrides: Partial<ComposePort> = {}): ComposePort {
   return {
-    getCampaignOwnerAndStatus: async () => ({ protocolId: "protocol-1", status: "DRAFT" }),
+    getCampaignOwnerAndStatus: async () => ({ protocolId: "protocol-1", status: "DRAFT", hasImage: false }),
     saveCompose: async () => {},
     generateRedirectToken: () => "tok-fixed",
     ...overrides,
@@ -24,7 +24,6 @@ const baseParams = {
   campaignId: "campaign-1",
   protocolId: "protocol-1",
   bodyText: "Come earn yield",
-  imageUrl: null,
   ctas: [{ label: "Claim", targetUrl: "https://example.com/claim" }],
 };
 
@@ -44,14 +43,14 @@ describe("saveCampaignCompose — SPEC §4.3 step 2 / §8", () => {
 
   it("refuses a campaign owned by a different protocol", async () => {
     const port = createFakePort({
-      getCampaignOwnerAndStatus: async () => ({ protocolId: "someone-else", status: "DRAFT" }),
+      getCampaignOwnerAndStatus: async () => ({ protocolId: "someone-else", status: "DRAFT", hasImage: false }),
     });
     await expect(saveCampaignCompose(port, baseParams)).rejects.toThrow(CampaignNotOwnedError);
   });
 
   it("refuses to edit a campaign that's left DRAFT (e.g. already IN_REVIEW)", async () => {
     const port = createFakePort({
-      getCampaignOwnerAndStatus: async () => ({ protocolId: "protocol-1", status: "IN_REVIEW" }),
+      getCampaignOwnerAndStatus: async () => ({ protocolId: "protocol-1", status: "IN_REVIEW", hasImage: false }),
     });
     await expect(saveCampaignCompose(port, baseParams)).rejects.toThrow(CampaignNotEditableError);
   });
@@ -98,6 +97,12 @@ describe("saveCampaignCompose — SPEC §4.3 step 2 / §8", () => {
     expect(result.ctas).toEqual([]);
   });
 
+  it("allows an empty/absent body with no image — image is optional and must never block saving", async () => {
+    const port = createFakePort();
+    const result = await saveCampaignCompose(port, { ...baseParams, bodyText: null, ctas: [] });
+    expect(result.ctas).toEqual([]);
+  });
+
   it("allows message text right at the no-image limit (4096 chars)", async () => {
     const port = createFakePort();
     const result = await saveCampaignCompose(port, { ...baseParams, bodyText: "a".repeat(TELEGRAM_TEXT_LIMIT_NO_IMAGE) });
@@ -111,14 +116,15 @@ describe("saveCampaignCompose — SPEC §4.3 step 2 / §8", () => {
     ).rejects.toThrow(MessageTooLongError);
   });
 
-  it("applies the shorter WITH-image limit (1024) once imageUrl is set, even if the text would fit the no-image limit", async () => {
-    const port = createFakePort();
+  it("applies the shorter WITH-image limit (1024) once the campaign currently has an image, even if the text would fit the no-image limit", async () => {
     const bodyText = "a".repeat(TELEGRAM_TEXT_LIMIT_WITH_IMAGE + 1);
-    await expect(
-      saveCampaignCompose(port, { ...baseParams, bodyText, imageUrl: "https://example.com/banner.png" }),
-    ).rejects.toThrow(MessageTooLongError);
+    const withImagePort = createFakePort({
+      getCampaignOwnerAndStatus: async () => ({ protocolId: "protocol-1", status: "DRAFT", hasImage: true }),
+    });
+    await expect(saveCampaignCompose(withImagePort, { ...baseParams, bodyText })).rejects.toThrow(MessageTooLongError);
     // The same text is fine without an image — proves it's the image that changed the limit, not the length alone.
-    await expect(saveCampaignCompose(port, { ...baseParams, bodyText, imageUrl: null })).resolves.toBeDefined();
+    const noImagePort = createFakePort();
+    await expect(saveCampaignCompose(noImagePort, { ...baseParams, bodyText })).resolves.toBeDefined();
   });
 
   it("rejects a CTA label over CTA_LABEL_MAX_LENGTH", async () => {
@@ -162,7 +168,7 @@ describe("saveCampaignCompose — SPEC §4.3 step 2 / §8", () => {
   it("checks ownership/editability before ever validating CTA content", async () => {
     let saveCalled = false;
     const port = createFakePort({
-      getCampaignOwnerAndStatus: async () => ({ protocolId: "someone-else", status: "DRAFT" }),
+      getCampaignOwnerAndStatus: async () => ({ protocolId: "someone-else", status: "DRAFT", hasImage: false }),
       saveCompose: async () => { saveCalled = true; },
     });
     await expect(

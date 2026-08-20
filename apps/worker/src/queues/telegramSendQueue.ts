@@ -6,7 +6,8 @@ export interface TelegramSendJobData {
   recipientId: string;
   chatId: string;
   text: string;
-  imageUrl?: string;
+  /** base64, not a raw Buffer — BullMQ JSON-serializes job data, which a Buffer wouldn't survive round-trip. */
+  imageBase64?: string;
   ctas: Array<{ label: string; redirectUrl: string }>;
 }
 

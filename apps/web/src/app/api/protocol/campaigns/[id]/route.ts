@@ -17,6 +17,11 @@ import { UnauthorizedError, requireRole } from "@/lib/session";
  * own data about its own campaign (no user data anywhere on Campaign/Cta),
  * so a direct query is fine here, same reasoning as the campaigns list GET.
  *
+ * Explicitly `select`s (rather than a blanket fetch) so the image's actual
+ * bytes (imageData, up to 10MB) never get pulled into memory just to load
+ * this detail view — only imageMimeType is read, to know whether one
+ * exists at all; the bytes themselves are only ever read by .../image.
+ *
  * Deliberately does NOT include each CTA's redirect token/URL — the
  * protocol doesn't need to see it to know a link works, and not putting it
  * in the response at all is stronger than just not rendering it client-side.
@@ -28,7 +33,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     const campaign = await prisma.campaign.findUnique({
       where: { id },
-      include: { categories: { include: { category: true } }, ctas: true },
+      select: {
+        id: true,
+        protocolId: true,
+        title: true,
+        status: true,
+        chain: true,
+        token: true,
+        bodyText: true,
+        imageMimeType: true,
+        createdAt: true,
+        categories: { select: { category: { select: { name: true } } } },
+        ctas: { select: { id: true, label: true, targetUrl: true } },
+      },
     });
     if (!campaign || campaign.protocolId !== accountId) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -36,12 +53,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     return NextResponse.json({
       id: campaign.id,
+      title: campaign.title,
       status: campaign.status,
       chain: campaign.chain,
       token: campaign.token,
       categoryNames: campaign.categories.map((c) => c.category.name),
       bodyText: campaign.bodyText,
-      imageUrl: campaign.imageUrl,
+      imageUrl: campaign.imageMimeType ? `/api/protocol/campaigns/${campaign.id}/image` : null,
       ctas: campaign.ctas.map((cta) => ({ id: cta.id, label: cta.label, targetUrl: cta.targetUrl })),
       createdAt: campaign.createdAt,
     });
@@ -53,29 +71,30 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
 interface PatchBody {
   bodyText: string | null;
-  imageUrl: string | null;
   ctas: Array<{ label: string; targetUrl: string }>;
 }
 
 /**
- * SPEC §4.3 step 2 / §8: save a DRAFT campaign's message text, optional
- * image, and CTAs. saveCampaignCompose() (in @emp/core) is what actually
- * enforces ownership, DRAFT-only editability, Telegram's real text/caption
- * limits, and the CTA count/label caps — wraps every CTA URL in a fresh
- * redirect token, which this route never echoes back (see GET's comment).
+ * SPEC §4.3 step 2 / §8: save a DRAFT campaign's message text and CTAs.
+ * The image is a separate upload (see .../image's own POST/DELETE) — not
+ * part of this body — so an empty/absent image can never block this save;
+ * saveCampaignCompose() (in @emp/core) reads whether one is attached only
+ * to pick the right text-length limit. It's also what actually enforces
+ * ownership, DRAFT-only editability, and the CTA count/label caps — wraps
+ * every CTA URL in a fresh redirect token, which this route never echoes
+ * back (see GET's comment).
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { accountId } = await requireRole("protocol");
     const { id } = await params;
-    const { bodyText, imageUrl, ctas } = (await request.json()) as PatchBody;
+    const { bodyText, ctas } = (await request.json()) as PatchBody;
 
     const store = createPrismaComposeStore(prisma);
     await saveCampaignCompose(store, {
       campaignId: id,
       protocolId: accountId,
       bodyText: bodyText?.trim() || null,
-      imageUrl: imageUrl?.trim() || null,
       ctas: ctas ?? [],
     });
 

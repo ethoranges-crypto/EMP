@@ -54,8 +54,9 @@ export interface SavedCta extends CtaInput {
 }
 
 export interface ComposePort {
-  getCampaignOwnerAndStatus(campaignId: string): Promise<{ protocolId: string; status: string } | null>;
-  saveCompose(params: { campaignId: string; bodyText: string | null; imageUrl: string | null; ctas: SavedCta[] }): Promise<void>;
+  /** hasImage reflects whatever the campaign's separate image-upload endpoint has currently saved (see updateCampaignImage.ts) — compose no longer carries the image itself. */
+  getCampaignOwnerAndStatus(campaignId: string): Promise<{ protocolId: string; status: string; hasImage: boolean } | null>;
+  saveCompose(params: { campaignId: string; bodyText: string | null; ctas: SavedCta[] }): Promise<void>;
   /** Injectable so tests get deterministic tokens instead of real randomness. */
   generateRedirectToken(): string;
 }
@@ -64,7 +65,6 @@ export interface SaveComposeParams {
   campaignId: string;
   protocolId: string;
   bodyText: string | null;
-  imageUrl: string | null;
   ctas: CtaInput[];
 }
 
@@ -87,11 +87,13 @@ function assertValidTargetUrl(raw: string): void {
 }
 
 /**
- * SPEC §4.3 step 2 / §8: save a DRAFT campaign's text/image/CTAs. Every CTA
- * URL the protocol enters gets a fresh redirect token here — the caller
- * never picks or sees a raw target URL again without it being wrapped, so
- * whatever eventually gets sent to a recipient always points at
- * /r/:token first (see apps/web's r/[token] route).
+ * SPEC §4.3 step 2 / §8: save a DRAFT campaign's text/CTAs. The image is a
+ * separate upload (updateCampaignImage.ts) — this function only reads
+ * whether one is currently attached, to pick the right text-length limit.
+ * Every CTA URL the protocol enters gets a fresh redirect token here — the
+ * caller never picks or sees a raw target URL again without it being
+ * wrapped, so whatever eventually gets sent to a recipient always points
+ * at /r/:token first (see apps/web's r/[token] route).
  *
  * Only the owning protocol may edit, and only while the campaign is still
  * DRAFT — SPEC's moderate -> pay -> send ordering (CLAUDE.md rule 2) means
@@ -111,10 +113,9 @@ export async function saveCampaignCompose(port: ComposePort, params: SaveCompose
   if (campaign.protocolId !== params.protocolId) throw new CampaignNotOwnedError(params.campaignId);
   if (campaign.status !== "DRAFT") throw new CampaignNotEditableError(campaign.status);
 
-  const hasImage = params.imageUrl !== null && params.imageUrl.length > 0;
-  const textLimit = telegramTextLimit(hasImage);
+  const textLimit = telegramTextLimit(campaign.hasImage);
   const bodyLength = (params.bodyText ?? "").length;
-  if (bodyLength > textLimit) throw new MessageTooLongError(bodyLength, textLimit, hasImage);
+  if (bodyLength > textLimit) throw new MessageTooLongError(bodyLength, textLimit, campaign.hasImage);
 
   if (params.ctas.length > MAX_CTAS_PER_CAMPAIGN) throw new TooManyCtasError();
 
@@ -135,7 +136,6 @@ export async function saveCampaignCompose(port: ComposePort, params: SaveCompose
   await port.saveCompose({
     campaignId: params.campaignId,
     bodyText: params.bodyText,
-    imageUrl: params.imageUrl,
     ctas,
   });
 

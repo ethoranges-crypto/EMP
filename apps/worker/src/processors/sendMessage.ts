@@ -21,9 +21,14 @@ export function createTelegramSendWorker(): Worker<TelegramSendJobData> {
   return new Worker<TelegramSendJobData>(
     TELEGRAM_SEND_QUEUE_NAME,
     async (job: Job<TelegramSendJobData>) => {
-      const { campaignId, recipientId, chatId, text, imageUrl, ctas } = job.data;
+      const { campaignId, recipientId, chatId, text, imageBase64, ctas } = job.data;
 
-      const result = await sendCampaignMessage(bot, { chatId, text, imageUrl, ctas });
+      const result = await sendCampaignMessage(bot, {
+        chatId,
+        text,
+        imageData: imageBase64 ? Buffer.from(imageBase64, "base64") : undefined,
+        ctas,
+      });
 
       await prisma.campaignRecipient.update({
         where: { id: recipientId },

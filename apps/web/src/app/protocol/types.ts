@@ -8,6 +8,7 @@ export interface ProtocolMe {
   name: string;
   status: ProtocolStatus;
   approvalNotes: string | null;
+  approvedBannerDismissed: boolean;
 }
 
 export type TokenSymbol = "USDC" | "USDT" | "ETH";
@@ -23,6 +24,7 @@ export type CampaignStatus = "DRAFT" | "IN_REVIEW" | "APPROVED" | "REJECTED" | "
 /** One row from GET /api/protocol/campaigns. */
 export interface ProtocolCampaign {
   id: string;
+  title: string;
   status: CampaignStatus;
   chain: string;
   token: TokenSymbol;
@@ -46,11 +48,13 @@ export interface CampaignCta {
 /** GET /api/protocol/campaigns/[id]'s response shape. */
 export interface CampaignDetail {
   id: string;
+  title: string;
   status: CampaignStatus;
   chain: string;
   token: TokenSymbol;
   categoryNames: string[];
   bodyText: string | null;
+  /** Server-derived — GET .../campaigns/[id]/image if an image is attached, otherwise null. Never a URL the protocol typed in. */
   imageUrl: string | null;
   ctas: CampaignCta[];
   createdAt: string;

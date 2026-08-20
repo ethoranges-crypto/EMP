@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@emp/db";
 import {
+  InvalidTitleError,
   NoCategoriesSelectedError,
   ProtocolNotApprovedError,
   createDraftCampaign,
@@ -9,6 +10,7 @@ import {
 import { UnauthorizedError, requireRole } from "@/lib/session";
 
 interface PostBody {
+  title: string;
   categoryIds: string[];
   chain: string;
   token: "USDC" | "USDT" | "ETH";
@@ -24,11 +26,12 @@ interface PostBody {
 export async function POST(request: Request) {
   try {
     const { accountId } = await requireRole("protocol");
-    const { categoryIds, chain, token } = (await request.json()) as PostBody;
+    const { title, categoryIds, chain, token } = (await request.json()) as PostBody;
 
     const store = createPrismaCreateCampaignStore(prisma);
     const { campaignId } = await createDraftCampaign(store, {
       protocolId: accountId,
+      title,
       categoryIds,
       chain,
       token,
@@ -39,6 +42,7 @@ export async function POST(request: Request) {
     if (err instanceof UnauthorizedError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (err instanceof ProtocolNotApprovedError) return NextResponse.json({ error: err.message }, { status: 403 });
     if (err instanceof NoCategoriesSelectedError) return NextResponse.json({ error: err.message }, { status: 400 });
+    if (err instanceof InvalidTitleError) return NextResponse.json({ error: err.message }, { status: 400 });
     throw err;
   }
 }
@@ -61,6 +65,7 @@ export async function GET() {
     return NextResponse.json({
       campaigns: campaigns.map((c) => ({
         id: c.id,
+        title: c.title,
         status: c.status,
         chain: c.chain,
         token: c.token,

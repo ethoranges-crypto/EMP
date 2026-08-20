@@ -34,7 +34,10 @@ export function createPrismaProtocolQueryStore(prisma: PrismaClient): ProtocolQu
         where: { id: campaignId },
         select: { costAmount: true, token: true },
       });
-      if (!campaign?.costAmount) return null;
+      // Cost locks at approval (CLAUDE.md rule 3), but token isn't chosen
+      // until the payment step after that (SPEC §6) — nothing to report as
+      // "spend" until both exist.
+      if (!campaign?.costAmount || !campaign.token) return null;
       return { token: campaign.token, amount: campaign.costAmount.toString() };
     },
 

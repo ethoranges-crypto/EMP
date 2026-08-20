@@ -42,6 +42,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         token: true,
         bodyText: true,
         imageMimeType: true,
+        snapshotCount: true,
+        costAmount: true,
         createdAt: true,
         categories: { select: { category: { select: { name: true } } } },
         ctas: { select: { id: true, label: true, targetUrl: true } },
@@ -63,6 +65,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       bodyText: campaign.bodyText,
       imageUrl: campaign.imageMimeType ? `/api/protocol/campaigns/${campaign.id}/image` : null,
       ctas: campaign.ctas.map((cta) => ({ id: cta.id, label: cta.label, targetUrl: cta.targetUrl })),
+      snapshotCount: campaign.snapshotCount,
+      costAmount: campaign.costAmount?.toString() ?? null,
       rejectionReason: campaign.status === "REJECTED" ? (campaign.moderationReviews[0]?.reason ?? null) : null,
       createdAt: campaign.createdAt,
     });

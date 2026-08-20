@@ -12,8 +12,6 @@ import { UnauthorizedError, requireRole } from "@/lib/session";
 interface PostBody {
   title: string;
   categoryIds: string[];
-  chain: string;
-  token: "USDC" | "USDT" | "ETH";
 }
 
 /**
@@ -21,20 +19,19 @@ interface PostBody {
  * compose (step 2), moderation, snapshot/cost-lock, and payment are all
  * later stages. createDraftCampaign() (in @emp/core) is what actually
  * enforces "only an APPROVED protocol may create a campaign," not this
- * route — see its own doc comment.
+ * route — see its own doc comment. No chain/token here (SPEC §6) — that's
+ * chosen later, at the payment step, once the campaign is APPROVED.
  */
 export async function POST(request: Request) {
   try {
     const { accountId } = await requireRole("protocol");
-    const { title, categoryIds, chain, token } = (await request.json()) as PostBody;
+    const { title, categoryIds } = (await request.json()) as PostBody;
 
     const store = createPrismaCreateCampaignStore(prisma);
     const { campaignId } = await createDraftCampaign(store, {
       protocolId: accountId,
       title,
       categoryIds,
-      chain,
-      token,
     });
 
     return NextResponse.json({ ok: true, campaignId });
@@ -80,6 +77,8 @@ export async function GET() {
         categoryNames: c.categories.map((cc) => cc.category.name),
         hasComposeContent: c.bodyText !== null,
         ctaCount: c._count.ctas,
+        snapshotCount: c.snapshotCount,
+        costAmount: c.costAmount?.toString() ?? null,
         rejectionReason: c.status === "REJECTED" ? (c.moderationReviews[0]?.reason ?? null) : null,
         createdAt: c.createdAt,
       })),

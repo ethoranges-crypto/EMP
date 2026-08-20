@@ -8,14 +8,12 @@ export function createPrismaCreateCampaignStore(prisma: PrismaClient): CreateCam
       return protocol?.status === "APPROVED";
     },
 
-    async createDraft({ protocolId, title, categoryIds, chain, token }) {
+    async createDraft({ protocolId, title, categoryIds }) {
       const campaign = await prisma.campaign.create({
         data: {
           protocolId,
           title,
           status: "DRAFT",
-          chain,
-          token,
           categories: { create: categoryIds.map((categoryId) => ({ categoryId })) },
         },
       });

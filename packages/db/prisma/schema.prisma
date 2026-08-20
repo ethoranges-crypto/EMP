@@ -57,10 +57,14 @@ enum CampaignStatus {
   COMPLETE
 }
 
+/// USDC/USDT only (SPEC §6) — both USD-pegged 1:1, so a locked USD cost is
+/// directly the token amount owed, with no price feed/conversion needed.
+/// ETH was removed as an accepted payment token for that reason; it could
+/// come back later behind the same interface once a price feed + buffer +
+/// sell-side handling exists.
 enum TokenSymbol {
   USDC
   USDT
-  ETH
 }
 
 enum PaymentStatus {
@@ -203,8 +207,12 @@ model Campaign {
   /// Required at creation (SPEC §4.3 step 1) — without it, campaigns
   /// targeting the same categories are indistinguishable in any list.
   title         String
-  chain         String
-  token         TokenSymbol
+  /// Payment chain/token: null until the protocol picks them at the
+  /// payment step (only possible once APPROVED — see setPaymentMethod.ts).
+  /// Deliberately NOT collected at creation: it's how the protocol pays
+  /// EMP, not what the campaign is about (SPEC §6).
+  chain         String?
+  token         TokenSymbol?
   bodyText      String?
   /// Uploaded, not a pasted URL — the protocol never has to host the
   /// image itself. Stored as bytes (not on disk/object storage) so it

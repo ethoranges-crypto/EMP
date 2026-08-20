@@ -219,12 +219,12 @@ export function ComposePanel({
                 <img
                   src={imagePreviewUrl}
                   alt=""
-                  className="h-16 w-16 rounded-md border border-white/10 object-cover"
+                  className="h-16 w-16 shrink-0 rounded-md border border-white/10 object-cover"
                 />
                 <button
                   onClick={() => void removeImage()}
                   disabled={imageBusy}
-                  className="rounded-full bg-white/10 px-4 py-1.5 text-xs text-slate-100 hover:bg-white/20 disabled:opacity-50"
+                  className="shrink-0 whitespace-nowrap rounded-full bg-white/10 px-4 py-1.5 text-xs text-slate-100 hover:bg-white/20 disabled:opacity-50"
                 >
                   {imageBusy ? "Removing…" : "Remove image"}
                 </button>
@@ -303,11 +303,11 @@ export function ComposePanel({
             </button>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => void save()}
               disabled={saving || submitting || !canSave}
-              className="self-start rounded-full bg-pulse-violet px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow disabled:opacity-50"
+              className="shrink-0 whitespace-nowrap self-start rounded-full bg-pulse-violet px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save draft"}
             </button>
@@ -316,7 +316,7 @@ export function ComposePanel({
                 onClick={() => void submitForApproval()}
                 disabled={saving || submitting || !canSubmit}
                 title={!hasComposedContent ? "Add a message before submitting for approval." : undefined}
-                className="self-start rounded-full bg-pulse-cyan px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow disabled:opacity-50"
+                className="shrink-0 whitespace-nowrap self-start rounded-full bg-pulse-cyan px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow disabled:opacity-50"
               >
                 {submitting ? "Submitting…" : "Submit for approval"}
               </button>

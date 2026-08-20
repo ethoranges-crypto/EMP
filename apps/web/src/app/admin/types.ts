@@ -26,11 +26,17 @@ export interface InReviewCampaign {
   id: string;
   title: string;
   protocolName: string;
-  chain: string;
-  token: "USDC" | "USDT" | "ETH";
+  /** The owning protocol's wallet — admin-only context, not the user privacy boundary (CLAUDE.md rule 1). */
+  protocolWallet: string;
   categoryNames: string[];
   bodyText: string | null;
   imageUrl: string | null;
   ctas: AdminCampaignCta[];
   createdAt: string;
+}
+
+/** GET /api/admin/settings's response shape. */
+export interface PlatformSettings {
+  /** USD, as a decimal string — null if never configured yet. */
+  flatCostPerUser: string | null;
 }

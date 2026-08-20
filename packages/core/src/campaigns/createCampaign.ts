@@ -1,11 +1,8 @@
 import { CAMPAIGN_TITLE_MAX_LENGTH } from "@emp/config";
 
-/** Kept as a plain union here (not imported from @emp/config or @emp/db) so this file stays framework-free, same as moderation.ts's CampaignStatus. */
-export type TokenSymbol = "USDC" | "USDT" | "ETH";
-
 export interface CreateCampaignPort {
   isApprovedProtocol(protocolId: string): Promise<boolean>;
-  createDraft(params: { protocolId: string; title: string; categoryIds: string[]; chain: string; token: TokenSymbol }): Promise<{
+  createDraft(params: { protocolId: string; title: string; categoryIds: string[] }): Promise<{
     campaignId: string;
   }>;
 }
@@ -35,8 +32,6 @@ export interface CreateDraftCampaignParams {
   protocolId: string;
   title: string;
   categoryIds: string[];
-  chain: string;
-  token: TokenSymbol;
 }
 
 /**
@@ -47,6 +42,11 @@ export interface CreateDraftCampaignParams {
  * Campaigns, admin moderation, the dashboard). Compose (text/image/CTAs,
  * step 2) and the snapshot/cost lock (step 5, on admin approval) are
  * later stages.
+ *
+ * Deliberately does NOT collect a payment chain/token here (SPEC §6): that's
+ * how the protocol pays EMP, not what the campaign is about, so it's chosen
+ * later at the payment step, once the campaign is APPROVED — see
+ * setPaymentMethod.ts.
  */
 export async function createDraftCampaign(
   port: CreateCampaignPort,

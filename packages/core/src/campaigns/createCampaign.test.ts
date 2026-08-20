@@ -20,8 +20,6 @@ const baseParams = {
   protocolId: "protocol-1",
   title: "Yield Boost Launch",
   categoryIds: ["cat-1", "cat-2"],
-  chain: "ETHEREUM",
-  token: "USDC" as const,
 };
 
 describe("createDraftCampaign — SPEC §4.3 step 1 / §4.2's approval gate", () => {

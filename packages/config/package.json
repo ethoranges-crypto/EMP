@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./telegramLimits": "./src/telegramLimits.ts",
-    "./campaignLimits": "./src/campaignLimits.ts"
+    "./campaignLimits": "./src/campaignLimits.ts",
+    "./paymentTokens": "./src/paymentTokens.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -7,7 +7,8 @@ import { SignInPanel } from "./SignInPanel";
 import { ProtocolsPanel } from "./ProtocolsPanel";
 import { CategoriesPanel } from "./CategoriesPanel";
 import { CampaignsModerationPanel } from "./CampaignsModerationPanel";
-import type { AdminCategory, InReviewCampaign, PendingProtocol } from "./types";
+import { PlatformSettingsPanel } from "./PlatformSettingsPanel";
+import type { AdminCategory, InReviewCampaign, PendingProtocol, PlatformSettings } from "./types";
 
 type ListStatus = "loading" | "signed-out" | "loaded" | "error";
 
@@ -23,6 +24,7 @@ export default function AdminPage() {
   const [listStatus, setListStatus] = useState<ListStatus>("loading");
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [inReviewCampaigns, setInReviewCampaigns] = useState<InReviewCampaign[]>([]);
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>({ flatCostPerUser: null });
 
   const fetchProtocols = useCallback(async () => {
     try {
@@ -57,6 +59,12 @@ export default function AdminPage() {
     setInReviewCampaigns(data.campaigns);
   }, []);
 
+  const fetchPlatformSettings = useCallback(async () => {
+    const res = await fetch("/api/admin/settings");
+    if (!res.ok) return;
+    setPlatformSettings((await res.json()) as PlatformSettings);
+  }, []);
+
   useEffect(() => {
     void fetchProtocols();
   }, [fetchProtocols]);
@@ -65,7 +73,8 @@ export default function AdminPage() {
     if (listStatus !== "loaded") return;
     void fetchCategories();
     void fetchInReviewCampaigns();
-  }, [listStatus, fetchCategories, fetchInReviewCampaigns]);
+    void fetchPlatformSettings();
+  }, [listStatus, fetchCategories, fetchInReviewCampaigns, fetchPlatformSettings]);
 
   async function handleSignOut() {
     await fetch("/api/auth/signout", { method: "POST" });
@@ -100,6 +109,7 @@ export default function AdminPage() {
         <div className="flex flex-col gap-6">
           <ProtocolsPanel protocols={protocols} onChange={() => void fetchProtocols()} />
           <CampaignsModerationPanel campaigns={inReviewCampaigns} onChange={() => void fetchInReviewCampaigns()} />
+          <PlatformSettingsPanel settings={platformSettings} onChange={() => void fetchPlatformSettings()} />
           <CategoriesPanel categories={categories} onChange={() => void fetchCategories()} />
           <button
             onClick={handleSignOut}

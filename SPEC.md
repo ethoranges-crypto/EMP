@@ -58,7 +58,7 @@ Value: protocols get a reliable way to reach DeFi users (notoriously hard); user
 - Per-campaign metrics: audience size, delivered count/%, click count/% (per CTA), spend. Aggregates only.
 
 ### 4.5 Admin
-- Approve/reject protocols; moderate messages; CRUD interest categories; set flat cost-per-user and accepted tokens; view campaigns and payment reconciliation; suspend bad actors.
+- Approve/reject protocols; moderate messages; CRUD interest categories; set the flat cost-per-user in USD (§6); view campaigns and payment reconciliation; suspend bad actors.
 
 ## 5. Chains & wallets
 
@@ -69,9 +69,9 @@ Value: protocols get a reliable way to reach DeFi users (notoriously hard); user
 
 ## 6. Payments
 
-- **Accepted tokens:** USDC, USDT, ETH.
-- **Chain:** the chain the campaign distributes on. If a campaign spans multiple chains, the protocol pays the full amount on **one chain of their choice**; if multi-chain payment logic proves complex, **default all payments to Ethereum**.
-- **Pricing:** flat cost per user (admin-configurable), charged on the snapshot count.
+- **Priced in USD.** Cost = flat cost per user (admin-configurable, in USD) × the snapshot count, shown to the protocol as a plain dollar figure (e.g. "$50 to reach 100 users") — not a token amount computed from some other unit.
+- **Accepted tokens: USDC, USDT only.** Both are USD-pegged 1:1, so the locked USD cost *is* the token amount to pay — no price feed, no conversion buffer, no slippage handling. This is why ETH is deliberately not accepted: pricing a campaign in ETH would need a live price feed, a buffer for the price moving between quote and payment, and a story for what EMP does with volatile ETH it receives — none of which is built. ETH (or any non-pegged asset) could be added later behind the same payment interface, once that machinery exists; until then the whole verification path stays simple by construction.
+- **Chain:** the protocol picks which supported EVM chain to pay on (wherever the stablecoin lives for them) — a payment-time choice, made after approval, not part of campaign content. If a campaign's audience spans multiple chains, the protocol still pays the full amount on **one chain of their choice**; if multi-chain payment logic proves complex, **default all payments to Ethereum**.
 - **Receiving architecture (recommended):** a single **EMP treasury address per chain** — *not* per-campaign wallets (per-campaign keys are an operational/security burden and painful to sweep).
 - **Verification (MVP):** protocol pays **from their authenticated wallet** to the treasury; EMP watches the chain (RPC/webhook/indexer) for the expected **token + amount from that known sender** within the payment window, then marks paid. Handle edge cases: wrong amount, wrong token, late payment, duplicate.
 - **Phase-2 hardening (build the payment layer behind an interface):** a minimal `CampaignPayments` contract per chain with `pay(campaignId, token, amount)` emitting `PaymentReceived` — explicit on-chain campaign↔payment linkage, single `withdraw()` to treasury.

@@ -2,24 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { CAMPAIGN_TITLE_MAX_LENGTH } from "@emp/config/campaignLimits";
-import { SAFE_CHAIN_OPTIONS } from "@/lib/wagmiConfig";
-import type { Category, TokenSymbol } from "./types";
-
-const TOKEN_OPTIONS: TokenSymbol[] = ["USDC", "USDT", "ETH"];
+import type { Category } from "./types";
 
 /**
  * SPEC §4.3 step 1: pick target categories, see the messageable audience
  * count (aggregate-only — GET/POST here never touch a wallet or chat_id;
  * see /api/protocol/audience-count's own doc comment for the actual
  * privacy-boundary enforcement), then persist a DRAFT. Compose (step 2)
- * is the next stage — this only collects categories + chain/token.
+ * is the next stage. Deliberately no chain/token here — that's how the
+ * protocol pays EMP, not what the campaign is about, so it's chosen later
+ * at the payment step, once the campaign is APPROVED (SPEC §6).
  */
 export function NewCampaignPanel({ onCreated }: { onCreated: () => void }) {
   const [title, setTitle] = useState("");
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [chain, setChain] = useState<string>(SAFE_CHAIN_OPTIONS[0].key);
-  const [token, setToken] = useState<TokenSymbol>("USDC");
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
   const [countLoading, setCountLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -77,7 +74,7 @@ export function NewCampaignPanel({ onCreated }: { onCreated: () => void }) {
     const res = await fetch("/api/protocol/campaigns", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, categoryIds: Array.from(selected), chain, token }),
+      body: JSON.stringify({ title, categoryIds: Array.from(selected) }),
     });
     setSubmitting(false);
     if (!res.ok) {
@@ -146,31 +143,6 @@ export function NewCampaignPanel({ onCreated }: { onCreated: () => void }) {
             {audienceCount} messageable user{audienceCount === 1 ? "" : "s"}
           </p>
         )}
-      </div>
-
-      <div className="flex gap-3">
-        <select
-          value={chain}
-          onChange={(e) => setChain(e.target.value)}
-          className="rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100"
-        >
-          {SAFE_CHAIN_OPTIONS.map((c) => (
-            <option key={c.key} value={c.key}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={token}
-          onChange={(e) => setToken(e.target.value as TokenSymbol)}
-          className="rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100"
-        >
-          {TOKEN_OPTIONS.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
       </div>
 
       <button

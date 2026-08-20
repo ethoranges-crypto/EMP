@@ -7,6 +7,7 @@ import { ApplicationPanel } from "./ApplicationPanel";
 import { NewCampaignPanel } from "./NewCampaignPanel";
 import { CampaignsPanel } from "./CampaignsPanel";
 import { ComposePanel } from "./ComposePanel";
+import { PaymentPanel } from "./PaymentPanel";
 import type { ProtocolCampaign, ProtocolMe } from "./types";
 
 type MeStatus = "loading" | "signed-out" | "signed-in" | "error";
@@ -17,6 +18,7 @@ export default function ProtocolJourneyPage() {
   const [meStatus, setMeStatus] = useState<MeStatus>("loading");
   const [campaigns, setCampaigns] = useState<ProtocolCampaign[]>([]);
   const [composingCampaignId, setComposingCampaignId] = useState<string | null>(null);
+  const [payingCampaignId, setPayingCampaignId] = useState<string | null>(null);
   const [justUpdated, setJustUpdated] = useState<{ campaignId: string; message: string } | null>(null);
 
   const fetchCampaigns = useCallback(async () => {
@@ -70,8 +72,9 @@ export default function ProtocolJourneyPage() {
     return () => clearTimeout(id);
   }, [justUpdated]);
 
-  function handleComposeSaved(campaignId: string, message: string) {
+  function handlePanelSaved(campaignId: string, message: string) {
     setComposingCampaignId(null);
+    setPayingCampaignId(null);
     setJustUpdated({ campaignId, message });
     void fetchCampaigns();
   }
@@ -119,13 +122,27 @@ export default function ProtocolJourneyPage() {
               <CampaignsPanel
                 campaigns={campaigns}
                 justUpdated={justUpdated}
-                onCompose={(id) => setComposingCampaignId(id)}
+                onCompose={(id) => {
+                  setPayingCampaignId(null);
+                  setComposingCampaignId(id);
+                }}
+                onPay={(id) => {
+                  setComposingCampaignId(null);
+                  setPayingCampaignId(id);
+                }}
               />
               {composingCampaignId && (
                 <ComposePanel
                   campaignId={composingCampaignId}
                   onClose={() => setComposingCampaignId(null)}
-                  onSaved={(message) => handleComposeSaved(composingCampaignId, message)}
+                  onSaved={(message) => handlePanelSaved(composingCampaignId, message)}
+                />
+              )}
+              {payingCampaignId && (
+                <PaymentPanel
+                  campaignId={payingCampaignId}
+                  onClose={() => setPayingCampaignId(null)}
+                  onSaved={(message) => handlePanelSaved(payingCampaignId, message)}
                 />
               )}
             </>

@@ -59,14 +59,12 @@ describe("listInReviewCampaigns (integration, real Postgres)", () => {
     imageMimeType?: string | null;
     createdAt?: Date;
   }) {
-    const campaign = await prisma.campaign.create({
-      data: { chain: "ETHEREUM", token: "USDC", ...data },
-    });
+    const campaign = await prisma.campaign.create({ data });
     createdCampaignIds.push(campaign.id);
     return campaign;
   }
 
-  it("returns an IN_REVIEW campaign's title, protocol name, text, image presence, and CTAs", async () => {
+  it("returns an IN_REVIEW campaign's title, protocol name/wallet, text, image presence, and CTAs", async () => {
     const protocol = await seedProtocol(`Acme-${runId}`);
     const campaign = await seedCampaign({
       protocolId: protocol.id,
@@ -85,6 +83,7 @@ describe("listInReviewCampaigns (integration, real Postgres)", () => {
     expect(rows[0]).toMatchObject({
       title: `Launch ${runId}`,
       protocolName: `Acme-${runId}`,
+      protocolWallet: protocol.wallet,
       bodyText: "Come earn yield",
       hasImage: true,
     });

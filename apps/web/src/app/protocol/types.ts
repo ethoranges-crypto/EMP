@@ -11,7 +11,7 @@ export interface ProtocolMe {
   approvedBannerDismissed: boolean;
 }
 
-export type TokenSymbol = "USDC" | "USDT" | "ETH";
+export type TokenSymbol = "USDC" | "USDT";
 
 /** SPEC §7 taxonomy — same admin-configured categories users pick interests from. */
 export interface Category {
@@ -26,11 +26,16 @@ export interface ProtocolCampaign {
   id: string;
   title: string;
   status: CampaignStatus;
-  chain: string;
-  token: TokenSymbol;
+  /** Payment chain/token — null until chosen at the payment step (SPEC §6), only possible once APPROVED. */
+  chain: string | null;
+  token: TokenSymbol | null;
   categoryNames: string[];
   hasComposeContent: boolean;
   ctaCount: number;
+  /** Locked at approval (CLAUDE.md rule 3) — audience size the cost was computed against. */
+  snapshotCount: number | null;
+  /** Locked at approval — already a USD amount (flatCostPerUser is USD, SPEC §6), as a decimal string. */
+  costAmount: string | null;
   /** The admin's reason, present only while status is currently REJECTED. */
   rejectionReason: string | null;
   createdAt: string;
@@ -52,13 +57,18 @@ export interface CampaignDetail {
   id: string;
   title: string;
   status: CampaignStatus;
-  chain: string;
-  token: TokenSymbol;
+  /** Payment chain/token — null until chosen at the payment step (SPEC §6), only possible once APPROVED. */
+  chain: string | null;
+  token: TokenSymbol | null;
   categoryNames: string[];
   bodyText: string | null;
   /** Server-derived — GET .../campaigns/[id]/image if an image is attached, otherwise null. Never a URL the protocol typed in. */
   imageUrl: string | null;
   ctas: CampaignCta[];
+  /** Locked at approval (CLAUDE.md rule 3) — audience size the cost was computed against. */
+  snapshotCount: number | null;
+  /** Locked at approval — already a USD amount (flatCostPerUser is USD, SPEC §6), as a decimal string. */
+  costAmount: string | null;
   /** The admin's reason, present only while status is currently REJECTED. */
   rejectionReason: string | null;
   createdAt: string;

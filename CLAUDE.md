@@ -14,6 +14,7 @@ EMP ("End-user Messaging Protocol") — a two-sided platform. Users link a walle
 6. **One human, one account (anti-sybil).** Enforce a strict 1:1:1 mapping — one wallet ↔ one account ↔ one Telegram account. `chat_id` and `primary_wallet` are both globally unique; a `chat_id` can never bind to more than one account. Audiences are drawn only from accounts with a *current verified* Telegram link. This is what protocols pay for; treat it as a hard invariant. See SPEC §7.5.
 7. **MVP first.** Build the full core loop end-to-end (see SPEC §12). Stub Phase-2 items behind clean interfaces; do not implement them.
 8. **Test the three things that must not break:** payment verification, the privacy boundary, and account uniqueness.
+9. **Migrations must apply against a database that already has rows in it.** Never write a migration that only works on an empty table — add new columns nullable or with a default first, backfill existing rows, *then* tighten (`SET NOT NULL`, narrow an enum, etc.) in the same migration. The same goes for removing an enum value: remap any row currently using it before the type swap, don't assume none exist. Before considering a migration done, apply it against a dev DB seeded with pre-existing protocols/campaigns/links, not just a fresh one — a migration that only works empty would fail in production too.
 
 ## Telegram realities (don't design around wishes)
 - A bot **cannot** DM a raw @handle. Linking = user opens the EMP bot → one-time code binds their `chat_id`. Store `chat_id`, never the handle.
@@ -27,7 +28,7 @@ EMP ("End-user Messaging Protocol") — a two-sided platform. Users link a walle
 - Gnosis Safe: user connects an **owner** wallet, signs SIWE, and we verify on-chain that the address is a Safe owner (EIP-1271 as fallback). One signature, no multi-signer coordination.
 
 ## Payments
-- Tokens: USDC, USDT, ETH. Flat cost per user (admin-configurable).
+- Tokens: **USDC, USDT only** (both USD-pegged 1:1, so a locked USD cost is directly the token amount — no price feed). Flat cost per user, in USD, admin-configurable. ETH is deliberately not accepted (see SPEC §6 for why); it could return later behind the same interface.
 - **One EMP treasury address per chain** — never per-campaign wallets.
 - MVP verification: watch the chain for expected token + amount from the protocol's authenticated wallet within the payment window.
 - Phase 2: `CampaignPayments` contract per chain. Build the payment layer behind an interface so it can slot in later.

@@ -13,12 +13,19 @@ export type CampaignStatus =
  * AWAITING_PAYMENT -> SENDING are the two gates: the first only fires after
  * admin approval (which also triggers the snapshot, see snapshot.ts), the
  * second only fires after payment verification (see @emp/payments).
+ *
+ * REJECTED -> IN_REVIEW is the resubmit path: a rejected campaign stays
+ * editable (see updateCompose.ts/updateCampaignImage.ts's
+ * EDITABLE_CAMPAIGN_STATUSES) and goes back through moderation via the same
+ * submit action a fresh DRAFT uses (submitForReview.ts) — it never silently
+ * reverts to DRAFT, so the rejection and its reason stay visible in the
+ * protocol's campaign list until a new submission actually happens.
  */
 const ALLOWED_TRANSITIONS: Record<CampaignStatus, CampaignStatus[]> = {
   DRAFT: ["IN_REVIEW"],
   IN_REVIEW: ["APPROVED", "REJECTED"],
   APPROVED: ["AWAITING_PAYMENT"],
-  REJECTED: [],
+  REJECTED: ["IN_REVIEW"],
   AWAITING_PAYMENT: ["SENDING"],
   SENDING: ["COMPLETE"],
   COMPLETE: [],

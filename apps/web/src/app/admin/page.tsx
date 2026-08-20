@@ -6,7 +6,8 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { SignInPanel } from "./SignInPanel";
 import { ProtocolsPanel } from "./ProtocolsPanel";
 import { CategoriesPanel } from "./CategoriesPanel";
-import type { AdminCategory, PendingProtocol } from "./types";
+import { CampaignsModerationPanel } from "./CampaignsModerationPanel";
+import type { AdminCategory, InReviewCampaign, PendingProtocol } from "./types";
 
 type ListStatus = "loading" | "signed-out" | "loaded" | "error";
 
@@ -21,6 +22,7 @@ export default function AdminPage() {
   const [protocols, setProtocols] = useState<PendingProtocol[]>([]);
   const [listStatus, setListStatus] = useState<ListStatus>("loading");
   const [categories, setCategories] = useState<AdminCategory[]>([]);
+  const [inReviewCampaigns, setInReviewCampaigns] = useState<InReviewCampaign[]>([]);
 
   const fetchProtocols = useCallback(async () => {
     try {
@@ -48,6 +50,13 @@ export default function AdminPage() {
     setCategories(data.categories);
   }, []);
 
+  const fetchInReviewCampaigns = useCallback(async () => {
+    const res = await fetch("/api/admin/campaigns");
+    if (!res.ok) return;
+    const data = (await res.json()) as { campaigns: InReviewCampaign[] };
+    setInReviewCampaigns(data.campaigns);
+  }, []);
+
   useEffect(() => {
     void fetchProtocols();
   }, [fetchProtocols]);
@@ -55,7 +64,8 @@ export default function AdminPage() {
   useEffect(() => {
     if (listStatus !== "loaded") return;
     void fetchCategories();
-  }, [listStatus, fetchCategories]);
+    void fetchInReviewCampaigns();
+  }, [listStatus, fetchCategories, fetchInReviewCampaigns]);
 
   async function handleSignOut() {
     await fetch("/api/auth/signout", { method: "POST" });
@@ -89,6 +99,7 @@ export default function AdminPage() {
       {listStatus === "loaded" && (
         <div className="flex flex-col gap-6">
           <ProtocolsPanel protocols={protocols} onChange={() => void fetchProtocols()} />
+          <CampaignsModerationPanel campaigns={inReviewCampaigns} onChange={() => void fetchInReviewCampaigns()} />
           <CategoriesPanel categories={categories} onChange={() => void fetchCategories()} />
           <button
             onClick={handleSignOut}

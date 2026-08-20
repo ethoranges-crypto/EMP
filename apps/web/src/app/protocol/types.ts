@@ -31,6 +31,8 @@ export interface ProtocolCampaign {
   categoryNames: string[];
   hasComposeContent: boolean;
   ctaCount: number;
+  /** The admin's reason, present only while status is currently REJECTED. */
+  rejectionReason: string | null;
   createdAt: string;
 }
 
@@ -57,5 +59,7 @@ export interface CampaignDetail {
   /** Server-derived — GET .../campaigns/[id]/image if an image is attached, otherwise null. Never a URL the protocol typed in. */
   imageUrl: string | null;
   ctas: CampaignCta[];
+  /** The admin's reason, present only while status is currently REJECTED. */
+  rejectionReason: string | null;
   createdAt: string;
 }

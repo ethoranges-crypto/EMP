@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@emp/db";
-import { EVERYTHING_CATEGORY_NAME, loadEnv } from "@emp/config";
+import { EVERYTHING_CATEGORY_NAME } from "@emp/config";
 import { approveCampaign, assertTransition, createPrismaSnapshotStore } from "@emp/core";
 import { UnauthorizedError, requireRole } from "@/lib/session";
 
@@ -10,10 +10,14 @@ interface Body {
 }
 
 /**
- * SPEC §4.3 steps 4-6 / CLAUDE.md rule 2 (moderate -> pay -> send): approval
- * snapshots the audience and locks cost (rule 3), then opens the payment
- * window. Nothing here ever queues a send — that only happens once
- * apps/worker's payment watcher verifies payment (see rule 2).
+ * SPEC §4.3 steps 4-5 / CLAUDE.md rule 2 (moderate -> pay -> send): approval
+ * snapshots the audience and locks cost (rule 3), landing the campaign in
+ * APPROVED — a "ready to pay" state. Opening the payment window (stage 6)
+ * and queuing the send (stage 7) are deliberately NOT done here; nothing in
+ * this route ever creates a Payment row or moves a campaign past APPROVED.
+ * Rejection sends the campaign back to the protocol with the admin's
+ * reason, still editable — see updateCompose.ts's EDITABLE_CAMPAIGN_STATUSES
+ * and moderation.ts's REJECTED -> IN_REVIEW resubmit transition.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -55,27 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       flatCostPerUser: Number(settings.flatCostPerUser),
     });
 
-    const env = loadEnv();
-    assertTransition("APPROVED", "AWAITING_PAYMENT");
-    const protocol = await prisma.protocol.findUniqueOrThrow({ where: { id: campaign.protocolId } });
-
-    await prisma.$transaction([
-      prisma.campaign.update({ where: { id: campaignId }, data: { status: "AWAITING_PAYMENT" } }),
-      prisma.payment.create({
-        data: {
-          campaignId,
-          chain: campaign.chain,
-          token: campaign.token,
-          amount: costAmount,
-          // SPEC §6 assumption 5: verification keys off the protocol's authenticated wallet.
-          fromAddress: protocol.wallet,
-          status: "AWAITING",
-          windowExpiresAt: new Date(Date.now() + env.PAYMENT_WINDOW_MINUTES * 60 * 1000),
-        },
-      }),
-    ]);
-
-    return NextResponse.json({ ok: true, status: "AWAITING_PAYMENT", snapshotCount, costAmount });
+    return NextResponse.json({ ok: true, status: "APPROVED", snapshotCount, costAmount });
   } catch (err) {
     if (err instanceof UnauthorizedError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     throw err;

@@ -17,6 +17,7 @@ export default function ProtocolJourneyPage() {
   const [meStatus, setMeStatus] = useState<MeStatus>("loading");
   const [campaigns, setCampaigns] = useState<ProtocolCampaign[]>([]);
   const [composingCampaignId, setComposingCampaignId] = useState<string | null>(null);
+  const [justUpdated, setJustUpdated] = useState<{ campaignId: string; message: string } | null>(null);
 
   const fetchCampaigns = useCallback(async () => {
     const res = await fetch("/api/protocol/campaigns");
@@ -61,6 +62,20 @@ export default function ProtocolJourneyPage() {
     void fetchCampaigns();
   }, [me?.status, fetchCampaigns]);
 
+  // Auto-clears the "Draft saved." / "Submitted for review." badge a
+  // few seconds after ComposePanel collapses back into this list.
+  useEffect(() => {
+    if (!justUpdated) return;
+    const id = setTimeout(() => setJustUpdated(null), 4000);
+    return () => clearTimeout(id);
+  }, [justUpdated]);
+
+  function handleComposeSaved(campaignId: string, message: string) {
+    setComposingCampaignId(null);
+    setJustUpdated({ campaignId, message });
+    void fetchCampaigns();
+  }
+
   async function handleSignOut() {
     await fetch("/api/auth/signout", { method: "POST" });
     setMe(null);
@@ -101,12 +116,16 @@ export default function ProtocolJourneyPage() {
           {me.status === "APPROVED" && (
             <>
               <NewCampaignPanel onCreated={() => void fetchCampaigns()} />
-              <CampaignsPanel campaigns={campaigns} onCompose={(id) => setComposingCampaignId(id)} />
+              <CampaignsPanel
+                campaigns={campaigns}
+                justUpdated={justUpdated}
+                onCompose={(id) => setComposingCampaignId(id)}
+              />
               {composingCampaignId && (
                 <ComposePanel
                   campaignId={composingCampaignId}
                   onClose={() => setComposingCampaignId(null)}
-                  onSaved={() => void fetchCampaigns()}
+                  onSaved={(message) => handleComposeSaved(composingCampaignId, message)}
                 />
               )}
             </>

@@ -55,6 +55,21 @@ describe("saveCampaignCompose — SPEC §4.3 step 2 / §8", () => {
     await expect(saveCampaignCompose(port, baseParams)).rejects.toThrow(CampaignNotEditableError);
   });
 
+  it("allows editing a REJECTED campaign — a rejection sends it back to the protocol still editable", async () => {
+    const port = createFakePort({
+      getCampaignOwnerAndStatus: async () => ({ protocolId: "protocol-1", status: "REJECTED", hasImage: false }),
+    });
+    const result = await saveCampaignCompose(port, baseParams);
+    expect(result.ctas).toHaveLength(1);
+  });
+
+  it("refuses to edit an APPROVED campaign", async () => {
+    const port = createFakePort({
+      getCampaignOwnerAndStatus: async () => ({ protocolId: "protocol-1", status: "APPROVED", hasImage: false }),
+    });
+    await expect(saveCampaignCompose(port, baseParams)).rejects.toThrow(CampaignNotEditableError);
+  });
+
   it("rejects a CTA with a blank label", async () => {
     const port = createFakePort();
     await expect(

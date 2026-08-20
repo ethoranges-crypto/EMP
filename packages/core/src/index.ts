@@ -13,5 +13,8 @@ export * from "./campaigns/updateCompose.js";
 export * from "./campaigns/prismaComposeStore.js";
 export * from "./campaigns/updateCampaignImage.js";
 export * from "./campaigns/prismaCampaignImageStore.js";
+export * from "./campaigns/submitForReview.js";
+export * from "./campaigns/prismaSubmitForReviewStore.js";
 export * from "./safe/verifyOwner.js";
 export * from "./admin/listPendingProtocols.js";
+export * from "./admin/listInReviewCampaigns.js";

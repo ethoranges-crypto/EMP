@@ -14,9 +14,20 @@ export class CampaignNotOwnedError extends Error {
   }
 }
 
+/**
+ * A campaign's compose (text/image/CTAs) can be edited while it's a fresh
+ * DRAFT, and again after a REJECTED decision (SPEC §4.3: rejection sends it
+ * back to the protocol with the admin's reason, still editable — see
+ * moderation.ts's REJECTED -> IN_REVIEW resubmit transition). Once it's
+ * IN_REVIEW or later, content is locked in — CLAUDE.md rule 2's
+ * moderate -> pay -> send ordering means nothing may change out from under
+ * a review or an already-approved snapshot.
+ */
+export const EDITABLE_CAMPAIGN_STATUSES = new Set(["DRAFT", "REJECTED"]);
+
 export class CampaignNotEditableError extends Error {
   constructor(status: string) {
-    super(`Campaign is ${status} — only a DRAFT campaign's compose can be edited.`);
+    super(`Campaign is ${status} — only a DRAFT or REJECTED campaign's compose can be edited.`);
     this.name = "CampaignNotEditableError";
   }
 }
@@ -95,10 +106,11 @@ function assertValidTargetUrl(raw: string): void {
  * wrapped, so whatever eventually gets sent to a recipient always points
  * at /r/:token first (see apps/web's r/[token] route).
  *
- * Only the owning protocol may edit, and only while the campaign is still
- * DRAFT — SPEC's moderate -> pay -> send ordering (CLAUDE.md rule 2) means
- * compose content must be locked in before it reaches an admin, not
- * editable out from under a review or an already-approved snapshot.
+ * Only the owning protocol may edit, and only in an EDITABLE_CAMPAIGN_STATUSES
+ * status (DRAFT, or REJECTED so a protocol can fix and resubmit) — SPEC's
+ * moderate -> pay -> send ordering (CLAUDE.md rule 2) means compose content
+ * must be locked in before it reaches an admin, not editable out from under
+ * a review or an already-approved snapshot.
  *
  * Enforces Telegram's real message/caption limits (packages/config's
  * telegramTextLimit — 4096 chars with no image, 1024 with one, since an
@@ -111,7 +123,7 @@ export async function saveCampaignCompose(port: ComposePort, params: SaveCompose
   const campaign = await port.getCampaignOwnerAndStatus(params.campaignId);
   if (!campaign) throw new CampaignNotFoundError(params.campaignId);
   if (campaign.protocolId !== params.protocolId) throw new CampaignNotOwnedError(params.campaignId);
-  if (campaign.status !== "DRAFT") throw new CampaignNotEditableError(campaign.status);
+  if (!EDITABLE_CAMPAIGN_STATUSES.has(campaign.status)) throw new CampaignNotEditableError(campaign.status);
 
   const textLimit = telegramTextLimit(campaign.hasImage);
   const bodyLength = (params.bodyText ?? "").length;

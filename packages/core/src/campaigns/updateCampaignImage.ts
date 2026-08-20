@@ -1,5 +1,5 @@
 import { CAMPAIGN_IMAGE_ALLOWED_MIME_TYPES, CAMPAIGN_IMAGE_MAX_BYTES, isAllowedCampaignImageMimeType } from "@emp/config";
-import { CampaignNotEditableError, CampaignNotFoundError, CampaignNotOwnedError } from "./updateCompose.js";
+import { CampaignNotEditableError, CampaignNotFoundError, CampaignNotOwnedError, EDITABLE_CAMPAIGN_STATUSES } from "./updateCompose.js";
 
 export class CampaignImageTooLargeError extends Error {
   constructor(byteLength: number) {
@@ -34,14 +34,15 @@ export interface SaveCampaignImageParams {
  * out from saveCampaignCompose() because the image is a real file upload
  * (multipart), not a form field saved alongside text/CTAs — it's its own
  * action with its own request, so text/CTA saves never depend on it.
- * Same ownership/DRAFT-only editability rules as compose (CLAUDE.md rule
- * 2): only the owning protocol may change it, and only pre-moderation.
+ * Same ownership/editability rules as compose (CLAUDE.md rule 2, see
+ * updateCompose.ts's EDITABLE_CAMPAIGN_STATUSES): only the owning protocol
+ * may change it, and only pre-moderation or after a rejection.
  */
 export async function saveCampaignImage(port: CampaignImagePort, params: SaveCampaignImageParams): Promise<void> {
   const campaign = await port.getCampaignOwnerAndStatus(params.campaignId);
   if (!campaign) throw new CampaignNotFoundError(params.campaignId);
   if (campaign.protocolId !== params.protocolId) throw new CampaignNotOwnedError(params.campaignId);
-  if (campaign.status !== "DRAFT") throw new CampaignNotEditableError(campaign.status);
+  if (!EDITABLE_CAMPAIGN_STATUSES.has(campaign.status)) throw new CampaignNotEditableError(campaign.status);
 
   if (params.data === null) {
     await port.saveImage(params.campaignId, null, null);

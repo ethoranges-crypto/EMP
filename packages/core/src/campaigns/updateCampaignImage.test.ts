@@ -57,6 +57,13 @@ describe("saveCampaignImage — SPEC §4.3 step 2 / §8", () => {
     await expect(saveCampaignImage(port, baseParams)).rejects.toThrow(CampaignNotEditableError);
   });
 
+  it("allows editing a REJECTED campaign's image", async () => {
+    const port = createFakePort({
+      getCampaignOwnerAndStatus: async () => ({ protocolId: "protocol-1", status: "REJECTED" }),
+    });
+    await expect(saveCampaignImage(port, baseParams)).resolves.toBeUndefined();
+  });
+
   it("rejects an image over CAMPAIGN_IMAGE_MAX_BYTES", async () => {
     const port = createFakePort();
     await expect(

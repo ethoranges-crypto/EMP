@@ -60,7 +60,15 @@ export async function GET() {
     const campaigns = await prisma.campaign.findMany({
       where: { protocolId: accountId },
       orderBy: { createdAt: "desc" },
-      include: { categories: { include: { category: true } }, _count: { select: { ctas: true } } },
+      include: {
+        categories: { include: { category: true } },
+        _count: { select: { ctas: true } },
+        // Only the single most recent review is ever relevant for display —
+        // if it was a REJECTED decision and the campaign is still (or again)
+        // REJECTED, that's the reason shown; a later resubmission moves
+        // status off REJECTED entirely, so the row below just won't surface it.
+        moderationReviews: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
     });
     return NextResponse.json({
       campaigns: campaigns.map((c) => ({
@@ -72,6 +80,7 @@ export async function GET() {
         categoryNames: c.categories.map((cc) => cc.category.name),
         hasComposeContent: c.bodyText !== null,
         ctaCount: c._count.ctas,
+        rejectionReason: c.status === "REJECTED" ? (c.moderationReviews[0]?.reason ?? null) : null,
         createdAt: c.createdAt,
       })),
     });

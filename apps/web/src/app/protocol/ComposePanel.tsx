@@ -35,13 +35,15 @@ export function ComposePanel({
 }: {
   campaignId: string;
   onClose: () => void;
-  onSaved: () => void;
+  /** Fires after a successful save OR submit, with a short human-readable summary the list can show. */
+  onSaved: (message: string) => void;
 }) {
   const [detail, setDetail] = useState<CampaignDetail | null>(null);
   const [bodyText, setBodyText] = useState("");
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [ctas, setCtas] = useState<CtaDraft[]>([]);
   const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imageBusy, setImageBusy] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -62,11 +64,14 @@ export function ComposePanel({
   const textLimit = telegramTextLimit(hasImage);
   const textOverLimit = bodyText.length > textLimit;
   const atCtaCap = ctas.length >= MAX_CTAS_PER_CAMPAIGN;
+  const isEditableStatus = detail?.status === "DRAFT" || detail?.status === "REJECTED";
+  const hasComposedContent = bodyText.trim().length > 0;
 
   const canSave = useMemo(
     () => !textOverLimit && ctas.every((c) => c.label.length <= CTA_LABEL_MAX_LENGTH),
     [textOverLimit, ctas],
   );
+  const canSubmit = canSave && hasComposedContent;
 
   function updateCta(index: number, field: keyof CtaDraft, value: string) {
     setCtas((prev) => prev.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
@@ -120,7 +125,7 @@ export function ComposePanel({
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  async function save() {
+  async function performSave(): Promise<boolean> {
     setSaving(true);
     setError(null);
     const res = await fetch(`/api/protocol/campaigns/${campaignId}`, {
@@ -132,9 +137,30 @@ export function ComposePanel({
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       setError(data.error ?? "Could not save.");
+      return false;
+    }
+    return true;
+  }
+
+  async function save() {
+    if (await performSave()) onSaved("Draft saved.");
+  }
+
+  async function submitForApproval() {
+    // Whatever's on screen is what gets reviewed, so save it first rather
+    // than submitting stale server-side content.
+    if (!(await performSave())) return;
+
+    setSubmitting(true);
+    setError(null);
+    const res = await fetch(`/api/protocol/campaigns/${campaignId}/submit`, { method: "POST" });
+    setSubmitting(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setError(data.error ?? "Could not submit for approval.");
       return;
     }
-    onSaved();
+    onSaved("Submitted for review.");
   }
 
   if (!detail) {
@@ -153,6 +179,13 @@ export function ComposePanel({
           ✕
         </button>
       </div>
+
+      {detail.status === "REJECTED" && detail.rejectionReason && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm">
+          <p className="font-medium text-red-300">Rejected by admin</p>
+          <p className="mt-1 text-red-200/90">{detail.rejectionReason}</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_280px]">
         <div className="flex flex-col gap-4">
@@ -270,13 +303,25 @@ export function ComposePanel({
             </button>
           </div>
 
-          <button
-            onClick={() => void save()}
-            disabled={saving || !canSave}
-            className="self-start rounded-full bg-pulse-violet px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow disabled:opacity-50"
-          >
-            {saving ? "Saving…" : "Save draft"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => void save()}
+              disabled={saving || submitting || !canSave}
+              className="self-start rounded-full bg-pulse-violet px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save draft"}
+            </button>
+            {isEditableStatus && (
+              <button
+                onClick={() => void submitForApproval()}
+                disabled={saving || submitting || !canSubmit}
+                title={!hasComposedContent ? "Add a message before submitting for approval." : undefined}
+                className="self-start rounded-full bg-pulse-cyan px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow disabled:opacity-50"
+              >
+                {submitting ? "Submitting…" : "Submit for approval"}
+              </button>
+            )}
+          </div>
 
           {error && (
             <p role="alert" className="text-sm text-red-400">

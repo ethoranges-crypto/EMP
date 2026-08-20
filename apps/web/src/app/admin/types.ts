@@ -14,3 +14,23 @@ export interface AdminCategory {
   name: string;
   active: boolean;
 }
+
+interface AdminCampaignCta {
+  id: string;
+  label: string;
+  targetUrl: string;
+}
+
+/** One row from GET /api/admin/campaigns — the moderation queue (IN_REVIEW only). */
+export interface InReviewCampaign {
+  id: string;
+  title: string;
+  protocolName: string;
+  chain: string;
+  token: "USDC" | "USDT" | "ETH";
+  categoryNames: string[];
+  bodyText: string | null;
+  imageUrl: string | null;
+  ctas: AdminCampaignCta[];
+  createdAt: string;
+}

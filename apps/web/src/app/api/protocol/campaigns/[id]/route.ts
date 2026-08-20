@@ -45,6 +45,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         createdAt: true,
         categories: { select: { category: { select: { name: true } } } },
         ctas: { select: { id: true, label: true, targetUrl: true } },
+        // Same "only the latest review matters" reasoning as the campaigns list GET.
+        moderationReviews: { orderBy: { createdAt: "desc" }, take: 1, select: { reason: true } },
       },
     });
     if (!campaign || campaign.protocolId !== accountId) {
@@ -61,6 +63,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       bodyText: campaign.bodyText,
       imageUrl: campaign.imageMimeType ? `/api/protocol/campaigns/${campaign.id}/image` : null,
       ctas: campaign.ctas.map((cta) => ({ id: cta.id, label: cta.label, targetUrl: cta.targetUrl })),
+      rejectionReason: campaign.status === "REJECTED" ? (campaign.moderationReviews[0]?.reason ?? null) : null,
       createdAt: campaign.createdAt,
     });
   } catch (err) {

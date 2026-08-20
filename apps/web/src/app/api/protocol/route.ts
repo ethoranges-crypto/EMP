@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@emp/db";
-import { UnauthorizedError, requireRole } from "@/lib/session";
+import { UnauthorizedError, requireAccount } from "@/lib/session";
 
 const NAME_MIN_LENGTH = 2;
 const NAME_MAX_LENGTH = 80;
@@ -13,8 +13,9 @@ const NAME_MAX_LENGTH = 80;
  */
 export async function GET() {
   try {
-    const { accountId } = await requireRole("protocol");
-    const protocol = await prisma.protocol.findUniqueOrThrow({ where: { id: accountId } });
+    const { account: protocol } = await requireAccount("protocol", (id) =>
+      prisma.protocol.findUniqueOrThrow({ where: { id } }),
+    );
     return NextResponse.json({
       wallet: protocol.wallet,
       accountType: protocol.accountType,
@@ -49,7 +50,9 @@ interface PostBody {
  */
 export async function POST(request: Request) {
   try {
-    const { accountId } = await requireRole("protocol");
+    const { account: protocol, accountId } = await requireAccount("protocol", (id) =>
+      prisma.protocol.findUniqueOrThrow({ where: { id } }),
+    );
     const { name } = (await request.json()) as PostBody;
     const trimmed = typeof name === "string" ? name.trim() : "";
 
@@ -60,7 +63,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const protocol = await prisma.protocol.findUniqueOrThrow({ where: { id: accountId } });
     if (protocol.status === "APPROVED" || protocol.status === "SUSPENDED") {
       return NextResponse.json(
         { error: "Your application has already been decided. Contact EMP to change your details." },

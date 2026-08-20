@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@emp/db";
 import { EVERYTHING_CATEGORY_NAME } from "@emp/config";
 import { createPrismaProtocolQueryStore, getAudienceCount } from "@emp/core";
-import { UnauthorizedError, requireRole } from "@/lib/session";
+import { UnauthorizedError, requireAccount } from "@/lib/session";
 
 interface Body {
   categoryIds: string[];
@@ -19,8 +19,9 @@ interface Body {
  */
 export async function POST(request: Request) {
   try {
-    const { accountId } = await requireRole("protocol");
-    const protocol = await prisma.protocol.findUniqueOrThrow({ where: { id: accountId } });
+    const { account: protocol } = await requireAccount("protocol", (id) =>
+      prisma.protocol.findUniqueOrThrow({ where: { id } }),
+    );
     if (protocol.status !== "APPROVED") {
       return NextResponse.json({ error: "Protocol is not approved" }, { status: 403 });
     }

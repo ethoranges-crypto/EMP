@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@emp/db";
 import { isValidTelegramBotUsername, loadEnv } from "@emp/config";
-import { UnauthorizedError, requireRole } from "@/lib/session";
+import { UnauthorizedError, requireAccount } from "@/lib/session";
 
 type TelegramLinkStatus = "not_configured" | "none" | "pending" | "rejected" | "expired" | "linked";
 
@@ -16,16 +16,16 @@ type TelegramLinkStatus = "not_configured" | "none" | "pending" | "rejected" | "
  */
 export async function GET() {
   try {
-    const { accountId, address } = await requireRole("user");
     const env = loadEnv();
-
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: accountId },
-      include: {
-        telegramLinks: { where: { status: "VERIFIED" }, take: 1 },
-        interests: { select: { categoryId: true } },
-      },
-    });
+    const { account: user, accountId, address } = await requireAccount("user", (id) =>
+      prisma.user.findUniqueOrThrow({
+        where: { id },
+        include: {
+          telegramLinks: { where: { status: "VERIFIED" }, take: 1 },
+          interests: { select: { categoryId: true } },
+        },
+      }),
+    );
 
     const messageable = user.telegramLinks.length > 0;
 

@@ -52,6 +52,26 @@ export interface CampaignCta {
   targetUrl: string;
 }
 
+export type PaymentStatus = "AWAITING" | "VERIFIED" | "UNDERPAID" | "WRONG_TOKEN" | "LATE" | "DUPLICATE";
+
+/**
+ * The payment window EMP opened once a chain/token was chosen (SPEC §6) —
+ * present once the campaign has ever had one (AWAITING_PAYMENT or later).
+ * treasuryAddress is what the protocol pays into; status flips to VERIFIED
+ * automatically once apps/worker's on-chain watcher confirms it — nothing
+ * here is admin/manually verified.
+ */
+export interface CampaignPaymentInfo {
+  chain: string;
+  token: TokenSymbol;
+  /** Decimal string, in the token's human units (USDC/USDT are 1:1 USD-pegged). */
+  amount: string;
+  status: PaymentStatus;
+  windowExpiresAt: string;
+  /** Null only if an admin removed the chain's treasury address after the window opened — shouldn't happen in practice. */
+  treasuryAddress: string | null;
+}
+
 /** GET /api/protocol/campaigns/[id]'s response shape. */
 export interface CampaignDetail {
   id: string;
@@ -72,4 +92,5 @@ export interface CampaignDetail {
   /** The admin's reason, present only while status is currently REJECTED. */
   rejectionReason: string | null;
   createdAt: string;
+  payment: CampaignPaymentInfo | null;
 }

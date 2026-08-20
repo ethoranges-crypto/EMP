@@ -118,7 +118,13 @@ export default function ProtocolJourneyPage() {
           <ApplicationPanel me={me} onChange={() => void fetchMe()} />
           {me.status === "APPROVED" && (
             <>
-              <NewCampaignPanel onCreated={() => void fetchCampaigns()} />
+              <NewCampaignPanel
+                onCreated={(campaignId) => {
+                  void fetchCampaigns();
+                  setPayingCampaignId(null);
+                  setComposingCampaignId(campaignId);
+                }}
+              />
               <CampaignsPanel
                 campaigns={campaigns}
                 justUpdated={justUpdated}

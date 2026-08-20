@@ -30,10 +30,10 @@ function CampaignReviewCard({ campaign, onChange }: { campaign: InReviewCampaign
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-white/10 bg-void/40 p-4">
       <div className="flex flex-col gap-1">
-        <p className="font-medium text-slate-100">{campaign.title}</p>
-        <p className="text-xs text-slate-300">
-          {campaign.protocolName} <span className="text-slate-500">— {campaign.protocolWallet}</span>
+        <p className="font-semibold text-slate-100">
+          {campaign.protocolName} <span className="font-normal text-slate-500">— {campaign.protocolWallet}</span>
         </p>
+        <p className="text-sm text-slate-400">{campaign.title}</p>
         <p className="text-xs text-slate-500">{campaign.categoryNames.join(", ") || "—"}</p>
         <p className="text-xs text-slate-600">Submitted {new Date(campaign.createdAt).toLocaleString()}</p>
       </div>

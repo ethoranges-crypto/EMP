@@ -1,4 +1,15 @@
+import type { ChainConfig } from "@emp/config";
+
 export type TokenSymbol = "USDC" | "USDT" | "ETH";
+
+/**
+ * A chain EMP can actually receive payment on: RPC-configured (env,
+ * @emp/config's ChainConfig) AND treasury-configured (DB, admin-set — see
+ * @emp/core's getPayableChains, the only place this type is constructed).
+ */
+export interface PayableChainConfig extends ChainConfig {
+  treasuryAddress: `0x${string}`;
+}
 
 export type PaymentStatus = "AWAITING" | "VERIFIED" | "UNDERPAID" | "WRONG_TOKEN" | "LATE" | "DUPLICATE";
 

@@ -1,7 +1,6 @@
 import { createPublicClient, formatEther, formatUnits, http, parseAbiItem, type PublicClient } from "viem";
-import type { ChainConfig } from "@emp/config";
 import { matchPayment } from "./matchPayment.js";
-import type { ObservedTransfer, PaymentVerificationResult, PaymentVerifier, PendingPayment, TokenSymbol } from "./types.js";
+import type { ObservedTransfer, PayableChainConfig, PaymentVerificationResult, PaymentVerifier, PendingPayment, TokenSymbol } from "./types.js";
 
 const ERC20_TRANSFER_EVENT = parseAbiItem(
   "event Transfer(address indexed from, address indexed to, uint256 value)",
@@ -14,7 +13,7 @@ const TOKEN_DECIMALS: Record<Exclude<TokenSymbol, "ETH">, number> = {
 };
 
 export interface EvmTreasuryWatcherOptions {
-  chain: ChainConfig;
+  chain: PayableChainConfig;
   /** How many blocks of history to scan per poll. Defaults to ~1hr of Ethereum blocks. */
   lookbackBlocks?: bigint;
   client?: PublicClient;
@@ -28,7 +27,7 @@ export interface EvmTreasuryWatcherOptions {
  * dependency — works against any RPC URL in @emp/config.
  */
 export class EvmTreasuryWatcher implements PaymentVerifier {
-  private readonly chain: ChainConfig;
+  private readonly chain: PayableChainConfig;
   private readonly lookbackBlocks: bigint;
   private readonly client: PublicClient;
 

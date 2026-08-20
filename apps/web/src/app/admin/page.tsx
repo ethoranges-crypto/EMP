@@ -8,7 +8,8 @@ import { ProtocolsPanel } from "./ProtocolsPanel";
 import { CategoriesPanel } from "./CategoriesPanel";
 import { CampaignsModerationPanel } from "./CampaignsModerationPanel";
 import { PlatformSettingsPanel } from "./PlatformSettingsPanel";
-import type { AdminCategory, InReviewCampaign, PendingProtocol, PlatformSettings } from "./types";
+import { TreasurySettingsPanel } from "./TreasurySettingsPanel";
+import type { AdminCategory, InReviewCampaign, PendingProtocol, PlatformSettings, TreasuryChainRow } from "./types";
 
 type ListStatus = "loading" | "signed-out" | "loaded" | "error";
 
@@ -25,6 +26,7 @@ export default function AdminPage() {
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [inReviewCampaigns, setInReviewCampaigns] = useState<InReviewCampaign[]>([]);
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>({ flatCostPerUser: null });
+  const [treasuryChains, setTreasuryChains] = useState<TreasuryChainRow[]>([]);
 
   const fetchProtocols = useCallback(async () => {
     try {
@@ -65,6 +67,13 @@ export default function AdminPage() {
     setPlatformSettings((await res.json()) as PlatformSettings);
   }, []);
 
+  const fetchTreasuryChains = useCallback(async () => {
+    const res = await fetch("/api/admin/treasury");
+    if (!res.ok) return;
+    const data = (await res.json()) as { chains: TreasuryChainRow[] };
+    setTreasuryChains(data.chains);
+  }, []);
+
   useEffect(() => {
     void fetchProtocols();
   }, [fetchProtocols]);
@@ -74,7 +83,8 @@ export default function AdminPage() {
     void fetchCategories();
     void fetchInReviewCampaigns();
     void fetchPlatformSettings();
-  }, [listStatus, fetchCategories, fetchInReviewCampaigns, fetchPlatformSettings]);
+    void fetchTreasuryChains();
+  }, [listStatus, fetchCategories, fetchInReviewCampaigns, fetchPlatformSettings, fetchTreasuryChains]);
 
   async function handleSignOut() {
     await fetch("/api/auth/signout", { method: "POST" });
@@ -110,6 +120,7 @@ export default function AdminPage() {
           <ProtocolsPanel protocols={protocols} onChange={() => void fetchProtocols()} />
           <CampaignsModerationPanel campaigns={inReviewCampaigns} onChange={() => void fetchInReviewCampaigns()} />
           <PlatformSettingsPanel settings={platformSettings} onChange={() => void fetchPlatformSettings()} />
+          <TreasurySettingsPanel chains={treasuryChains} onChange={() => void fetchTreasuryChains()} />
           <CategoriesPanel categories={categories} onChange={() => void fetchCategories()} />
           <button
             onClick={handleSignOut}

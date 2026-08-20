@@ -49,7 +49,7 @@ export function CampaignsPanel({
               {c.status === "REJECTED" && c.rejectionReason && (
                 <p className="text-xs text-red-400">Rejected: {c.rejectionReason}</p>
               )}
-              {c.status === "APPROVED" && usd !== null && c.snapshotCount !== null && (
+              {(c.status === "APPROVED" || c.status === "AWAITING_PAYMENT") && usd !== null && c.snapshotCount !== null && (
                 <p className="text-xs text-pulse-cyan">
                   ${usd.toFixed(2)} to reach {c.snapshotCount} user{c.snapshotCount === 1 ? "" : "s"}
                 </p>
@@ -62,12 +62,12 @@ export function CampaignsPanel({
                   {c.hasComposeContent ? "Edit compose" : "Compose"}
                 </button>
               )}
-              {c.status === "APPROVED" && (
+              {(c.status === "APPROVED" || c.status === "AWAITING_PAYMENT") && (
                 <button
                   onClick={() => onPay(c.id)}
                   className="mt-1 self-start whitespace-nowrap rounded-full bg-pulse-cyan px-4 py-1.5 text-xs font-medium text-void hover:shadow-glow"
                 >
-                  Pay
+                  {c.status === "APPROVED" ? "Pay" : "View payment"}
                 </button>
               )}
             </div>

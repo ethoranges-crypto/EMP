@@ -8,6 +8,7 @@ import {
   MessageTooLongError,
   TooManyCtasError,
   createPrismaComposeStore,
+  createPrismaTreasuryStore,
   saveCampaignCompose,
 } from "@emp/core";
 import { UnauthorizedError, requireRole } from "@/lib/session";
@@ -25,6 +26,11 @@ import { UnauthorizedError, requireRole } from "@/lib/session";
  * Deliberately does NOT include each CTA's redirect token/URL — the
  * protocol doesn't need to see it to know a link works, and not putting it
  * in the response at all is stronger than just not rendering it client-side.
+ *
+ * Once a payment window is open (AWAITING_PAYMENT or later), also includes
+ * the most recent Payment row plus the resolved treasury address to pay —
+ * this is what the protocol pays into; the automated on-chain watcher
+ * (apps/worker) is what flips `payment.status` to VERIFIED, never this route.
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -49,11 +55,23 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         ctas: { select: { id: true, label: true, targetUrl: true } },
         // Same "only the latest review matters" reasoning as the campaigns list GET.
         moderationReviews: { orderBy: { createdAt: "desc" }, take: 1, select: { reason: true } },
+        payments: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { chain: true, token: true, amount: true, status: true, windowExpiresAt: true },
+        },
       },
     });
     if (!campaign || campaign.protocolId !== accountId) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+
+    const latestPayment = campaign.payments[0] ?? null;
+    const treasuryAddress = latestPayment
+      ? await createPrismaTreasuryStore(prisma)
+          .listTreasuryAddresses()
+          .then((treasuries) => treasuries[latestPayment.chain] ?? null)
+      : null;
 
     return NextResponse.json({
       id: campaign.id,
@@ -69,6 +87,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       costAmount: campaign.costAmount?.toString() ?? null,
       rejectionReason: campaign.status === "REJECTED" ? (campaign.moderationReviews[0]?.reason ?? null) : null,
       createdAt: campaign.createdAt,
+      payment: latestPayment
+        ? {
+            chain: latestPayment.chain,
+            token: latestPayment.token,
+            amount: latestPayment.amount.toString(),
+            status: latestPayment.status,
+            windowExpiresAt: latestPayment.windowExpiresAt,
+            treasuryAddress,
+          }
+        : null,
     });
   } catch (err) {
     if (err instanceof UnauthorizedError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

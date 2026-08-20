@@ -40,3 +40,12 @@ export interface PlatformSettings {
   /** USD, as a decimal string — null if never configured yet. */
   flatCostPerUser: string | null;
 }
+
+/** One row from GET /api/admin/treasury. */
+export interface TreasuryChainRow {
+  key: string;
+  displayName: string;
+  /** Whether this chain currently has an RPC URL configured (env, @emp/config) — a treasury address alone isn't enough to make it payable. */
+  rpcConfigured: boolean;
+  treasuryAddress: string | null;
+}

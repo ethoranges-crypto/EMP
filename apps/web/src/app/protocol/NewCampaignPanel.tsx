@@ -6,19 +6,24 @@ import type { Category } from "./types";
 
 /**
  * SPEC §4.3 step 1: pick target categories, see the messageable audience
- * count (aggregate-only — GET/POST here never touch a wallet or chat_id;
- * see /api/protocol/audience-count's own doc comment for the actual
- * privacy-boundary enforcement), then persist a DRAFT. Compose (step 2)
- * is the next stage. Deliberately no chain/token here — that's how the
- * protocol pays EMP, not what the campaign is about, so it's chosen later
- * at the payment step, once the campaign is APPROVED (SPEC §6).
+ * count and estimated cost (aggregate-only — GET/POST here never touch a
+ * wallet or chat_id; see /api/protocol/audience-count's own doc comment for
+ * the actual privacy-boundary enforcement), then persist a DRAFT. Cost is
+ * shown here — before compose/submit — so the buying decision happens
+ * before any effort is invested, not as a surprise after approval; the
+ * *actual* charge still locks at approval time (CLAUDE.md rule 3), this is
+ * an estimate against the current audience. Compose (step 2) is the next
+ * stage. Deliberately no chain/token here — that's how the protocol pays
+ * EMP, not what the campaign is about, so it's chosen later at the payment
+ * step, once the campaign is APPROVED (SPEC §6).
  */
-export function NewCampaignPanel({ onCreated }: { onCreated: () => void }) {
+export function NewCampaignPanel({ onCreated }: { onCreated: (campaignId: string) => void }) {
   const [title, setTitle] = useState("");
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
   const [countLoading, setCountLoading] = useState(false);
+  const [flatCostPerUser, setFlatCostPerUser] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +32,15 @@ export function NewCampaignPanel({ onCreated }: { onCreated: () => void }) {
       .then((r) => r.json())
       .then((data: { categories: Category[] }) => setCategories(data.categories))
       .catch(() => setCategories([]));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/protocol/pricing")
+      .then((r) => r.json())
+      .then((data: { flatCostPerUser: string | null }) => {
+        setFlatCostPerUser(data.flatCostPerUser !== null ? Number(data.flatCostPerUser) : null);
+      })
+      .catch(() => setFlatCostPerUser(null));
   }, []);
 
   // Re-fetches on every toggle — an AbortController drops a stale response
@@ -82,15 +96,20 @@ export function NewCampaignPanel({ onCreated }: { onCreated: () => void }) {
       setError(data.error ?? "Could not create the campaign.");
       return;
     }
+    const data = (await res.json()) as { campaignId: string };
     setTitle("");
     setSelected(new Set());
     setAudienceCount(null);
-    onCreated();
+    onCreated(data.campaignId);
   }
 
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-white/10 bg-surface p-6">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">New campaign</h2>
+
+      {flatCostPerUser !== null && (
+        <p className="text-xs text-slate-500">EMP charges ${flatCostPerUser.toFixed(2)} per messageable user reached.</p>
+      )}
 
       <label className="flex flex-col gap-1 text-sm text-slate-300">
         Campaign title
@@ -139,9 +158,16 @@ export function NewCampaignPanel({ onCreated }: { onCreated: () => void }) {
         )}
         {selected.size > 0 && countLoading && <p className="text-sm text-slate-500">Counting…</p>}
         {selected.size > 0 && !countLoading && audienceCount !== null && (
-          <p className="text-lg font-semibold text-pulse-cyan">
-            {audienceCount} messageable user{audienceCount === 1 ? "" : "s"}
-          </p>
+          <>
+            <p className="text-lg font-semibold text-pulse-cyan">
+              {audienceCount} messageable user{audienceCount === 1 ? "" : "s"}
+            </p>
+            {flatCostPerUser !== null && (
+              <p className="text-sm text-slate-300">
+                Estimated cost: ${(flatCostPerUser * audienceCount).toFixed(2)}
+              </p>
+            )}
+          </>
         )}
       </div>
 

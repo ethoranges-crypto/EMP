@@ -1,4 +1,5 @@
 import { getChains, getPayableChains, loadEnv, loadRootEnvFile } from "@emp/config";
+import { isTelegramCompatibleUrl } from "@emp/telegram";
 import { createPaymentWatchQueue, schedulePaymentWatchTick } from "./queues/paymentWatchQueue.js";
 import { createPaymentWatchWorker } from "./processors/watchPayments.js";
 import { createTelegramSendWorker } from "./processors/sendMessage.js";
@@ -10,7 +11,7 @@ import { createTelegramSendWorker } from "./processors/sendMessage.js";
 // loadEnv()/getChains() call somewhere inside a processor.
 loadRootEnvFile();
 
-loadEnv(); // fail fast on missing/malformed config before starting any worker
+const env = loadEnv(); // fail fast on missing/malformed config before starting any worker
 
 const sendWorker = createTelegramSendWorker();
 const paymentWatchWorker = createPaymentWatchWorker();
@@ -39,6 +40,21 @@ if (rpcChains.length === 0) {
         (payableKeys.has(chain.key) ? ", treasury configured -> payable" : ", NO treasury address -> not payable"),
     );
   }
+}
+
+// Same reasoning as the chain diagnostics above, for the other common
+// misconfiguration: Telegram rejects an inline keyboard button URL that
+// isn't a public HTTPS address (see @emp/telegram's isTelegramCompatibleUrl)
+// — every CTA's redirect URL is built from this one var, so a bad value
+// here would otherwise only surface per-recipient, buried in send-job
+// failures, once a campaign with CTAs actually reaches SENDING.
+if (!isTelegramCompatibleUrl(`${env.REDIRECT_BASE_URL}/sample-token`)) {
+  console.warn(
+    `[worker] REDIRECT_BASE_URL ("${env.REDIRECT_BASE_URL}") isn't a public HTTPS address — Telegram will ` +
+      "reject any CTA button built from it. Campaigns with no CTAs still send fine; anything with a CTA will " +
+      "fail for every recipient until this points at a real HTTPS host (a public tunnel like ngrok/cloudflared " +
+      "works for local testing — see the README).",
+  );
 }
 
 for (const worker of [sendWorker, paymentWatchWorker]) {

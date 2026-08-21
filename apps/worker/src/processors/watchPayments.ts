@@ -2,6 +2,7 @@ import { Worker } from "bullmq";
 import { getPayableChains, loadEnv } from "@emp/config";
 import { assertTransition } from "@emp/core";
 import { EvmTreasuryWatcher, type PendingPayment } from "@emp/payments";
+import { isTelegramCompatibleUrl } from "@emp/telegram";
 import { prisma } from "@emp/db";
 import { getRedisConnection } from "../redis.js";
 import { PAYMENT_WATCH_QUEUE_NAME } from "../queues/paymentWatchQueue.js";
@@ -40,20 +41,28 @@ export function createPaymentWatchWorker(): Worker {
             windowExpiresAt: payment.windowExpiresAt,
           };
 
-          const result = await watcher.checkPayment(pending);
-          if (result.status === "AWAITING") continue;
+          // One payment's failure (a bad campaign/CTA config, a transient
+          // RPC hiccup on the checkPayment call, whatever) must never take
+          // down the rest of this tick — every other AWAITING payment on
+          // this chain still deserves a check.
+          try {
+            const result = await watcher.checkPayment(pending);
+            if (result.status === "AWAITING") continue;
 
-          await prisma.payment.update({
-            where: { id: payment.id },
-            data: {
-              status: result.status,
-              txHash: result.txHash,
-              verifiedAt: result.status === "VERIFIED" ? new Date() : undefined,
-            },
-          });
+            await prisma.payment.update({
+              where: { id: payment.id },
+              data: {
+                status: result.status,
+                txHash: result.txHash,
+                verifiedAt: result.status === "VERIFIED" ? new Date() : undefined,
+              },
+            });
 
-          if (result.status === "VERIFIED") {
-            await sendCampaignOnPaymentVerified(sendQueue, payment.campaignId);
+            if (result.status === "VERIFIED") {
+              await sendCampaignOnPaymentVerified(sendQueue, payment.campaignId);
+            }
+          } catch (err) {
+            console.error(`[worker] payment-watch tick failed for payment ${payment.id} (campaign ${payment.campaignId}):`, err);
           }
         }
       }
@@ -79,6 +88,30 @@ async function sendCampaignOnPaymentVerified(
     label: cta.label,
     redirectUrl: `${env.REDIRECT_BASE_URL}/${cta.redirectToken}`,
   }));
+
+  // Every CTA shares the same REDIRECT_BASE_URL, so if one fails Telegram's
+  // "public HTTPS only" rule they all do — checking once here, for the
+  // whole campaign, avoids enqueueing one doomed job per recipient (each of
+  // which would fail identically; see @emp/telegram's sendCampaignMessage,
+  // which also checks this defensively per-job). Marks every recipient
+  // FAILED up front instead of leaving the campaign looking like it's still
+  // sending.
+  const invalidCta = ctas.find((cta) => !isTelegramCompatibleUrl(cta.redirectUrl));
+  if (invalidCta) {
+    console.error(
+      `[worker] Campaign ${campaignId}: REDIRECT_BASE_URL ("${env.REDIRECT_BASE_URL}") produces a CTA URL ` +
+        `Telegram will reject (e.g. "${invalidCta.redirectUrl}") — it must be a public HTTPS host, not ` +
+        "localhost/http. Fix the env var and restart the worker; this campaign will stay marked SENDING " +
+        "with 0 delivered until it's resent manually.",
+    );
+    await prisma.deliveryEvent.upsert({
+      where: { campaignId_status: { campaignId, status: "FAILED" } },
+      create: { campaignId, status: "FAILED", count: campaign.recipients.length },
+      update: { count: { increment: campaign.recipients.length } },
+    });
+    await prisma.campaignRecipient.updateMany({ where: { campaignId }, data: { deliveryStatus: "FAILED" } });
+    return;
+  }
 
   const jobs: Array<{ name: string; data: TelegramSendJobData }> = campaign.recipients.map((recipient) => ({
     name: "send",

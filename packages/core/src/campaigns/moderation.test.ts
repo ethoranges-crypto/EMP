@@ -30,6 +30,24 @@ describe("campaign status transitions — CLAUDE.md rule 2 (moderate -> pay -> s
     expect(canTransition("COMPLETE", "IN_REVIEW")).toBe(false);
   });
 
+  it("allows retrying a payment that didn't pan out — back to APPROVED for a fresh attempt", () => {
+    expect(canTransition("AWAITING_PAYMENT", "APPROVED")).toBe(true);
+  });
+
+  it("allows cancelling a payment that didn't pan out", () => {
+    expect(canTransition("AWAITING_PAYMENT", "CANCELLED")).toBe(true);
+  });
+
+  it("CANCELLED is terminal", () => {
+    expect(canTransition("CANCELLED", "APPROVED")).toBe(false);
+    expect(canTransition("CANCELLED", "AWAITING_PAYMENT")).toBe(false);
+  });
+
+  it("never lets a campaign jump straight to CANCELLED from outside a payment attempt", () => {
+    expect(canTransition("APPROVED", "CANCELLED")).toBe(false);
+    expect(canTransition("DRAFT", "CANCELLED")).toBe(false);
+  });
+
   it("assertTransition throws InvalidCampaignTransitionError for a disallowed move", () => {
     expect(() => assertTransition("DRAFT", "APPROVED")).toThrow(InvalidCampaignTransitionError);
   });

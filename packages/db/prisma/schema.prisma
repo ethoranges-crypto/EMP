@@ -55,6 +55,10 @@ enum CampaignStatus {
   AWAITING_PAYMENT
   SENDING
   COMPLETE
+  /// Protocol gave up on a payment attempt that didn't pan out (expired,
+  /// underpaid, wrong token, ...) rather than retrying — terminal, no
+  /// further transitions. See moderation.ts's cancelPaymentWindow.
+  CANCELLED
 }
 
 /// USDC/USDT only (SPEC §6) — both USD-pegged 1:1, so a locked USD cost is

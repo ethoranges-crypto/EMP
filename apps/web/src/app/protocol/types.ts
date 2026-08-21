@@ -19,7 +19,15 @@ export interface Category {
   name: string;
 }
 
-export type CampaignStatus = "DRAFT" | "IN_REVIEW" | "APPROVED" | "REJECTED" | "AWAITING_PAYMENT" | "SENDING" | "COMPLETE";
+export type CampaignStatus =
+  | "DRAFT"
+  | "IN_REVIEW"
+  | "APPROVED"
+  | "REJECTED"
+  | "AWAITING_PAYMENT"
+  | "SENDING"
+  | "COMPLETE"
+  | "CANCELLED";
 
 /** One row from GET /api/protocol/campaigns. */
 export interface ProtocolCampaign {

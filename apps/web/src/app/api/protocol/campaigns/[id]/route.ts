@@ -66,7 +66,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const latestPayment = campaign.payments[0] ?? null;
+    // Only surface the payment while it's actually current — once a
+    // payment attempt didn't pan out and the protocol retries (back to
+    // APPROVED), campaign.payments[0] is still that old LATE/UNDERPAID/etc.
+    // row until a new one is opened; showing it here would make the Pay
+    // panel display a stale failure instead of the fresh chain/token picker.
+    const showPayment = campaign.status === "AWAITING_PAYMENT" || campaign.status === "SENDING" || campaign.status === "COMPLETE";
+    const latestPayment = showPayment ? (campaign.payments[0] ?? null) : null;
     const treasuryAddress = latestPayment ? (getChain(latestPayment.chain)?.treasuryAddress ?? null) : null;
 
     return NextResponse.json({

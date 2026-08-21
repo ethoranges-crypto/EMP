@@ -37,7 +37,15 @@ export function createTelegramSendWorker(): Worker<TelegramSendJobData> {
       await bumpDeliveryEvent(campaignId, result.status === "SENT" ? "SENT" : result.status === "BLOCKED" ? "BLOCKED" : "FAILED");
 
       if (result.status === "FAILED") {
-        throw new Error(result.error); // lets BullMQ's retry/backoff (SPEC §8) do its job
+        if (result.retryable) {
+          throw new Error(result.error); // lets BullMQ's retry/backoff (SPEC §8) do its job
+        }
+        // Not retryable — a malformed CTA URL or a non-429 4xx will fail
+        // identically every time, so retrying just spends 5 attempts'
+        // worth of backoff to reach the same FAILED outcome already
+        // recorded above. Log once and let the job resolve as done.
+        // eslint-disable-next-line no-console
+        console.error(`[worker] Not retrying recipient ${recipientId} (campaign ${campaignId}) — permanent failure: ${result.error}`);
       }
     },
     {

@@ -40,6 +40,7 @@ export function PaymentPanel({
   const [chain, setChain] = useState("");
   const [token, setToken] = useState<PaymentToken>("USDC");
   const [saving, setSaving] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -98,6 +99,23 @@ export function PaymentPanel({
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       setError(data.error ?? "Could not save payment method.");
+      return;
+    }
+    void fetchDetail();
+  }
+
+  async function recover(action: "retry-payment" | "cancel-payment") {
+    setRecovering(true);
+    setError(null);
+    const res = await fetch(`/api/protocol/campaigns/${campaignId}/${action}`, { method: "POST" });
+    setRecovering(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setError(data.error ?? "Could not update this campaign.");
+      return;
+    }
+    if (action === "cancel-payment") {
+      onSaved("Campaign cancelled.");
       return;
     }
     void fetchDetail();
@@ -170,7 +188,35 @@ export function PaymentPanel({
             <p className="text-sm text-red-400">A payment arrived in the wrong token.</p>
           )}
           {detail.payment.status === "LATE" && (
-            <p className="text-sm text-red-400">A payment arrived after the window closed.</p>
+            <p className="text-sm text-red-400">Payment not received before the window closed.</p>
+          )}
+          {detail.payment.status === "DUPLICATE" && (
+            <p className="text-sm text-red-400">That transaction was already used for a different payment.</p>
+          )}
+
+          {detail.payment.status !== "AWAITING" && (
+            <div className="flex flex-col gap-2 border-t border-white/10 pt-3">
+              <p className="text-xs text-slate-500">
+                This payment attempt didn&apos;t go through — retry with a fresh payment window, or cancel this
+                campaign.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => void recover("retry-payment")}
+                  disabled={recovering}
+                  className="whitespace-nowrap rounded-full bg-pulse-cyan px-4 py-1.5 text-xs font-medium text-void transition hover:shadow-glow disabled:opacity-50"
+                >
+                  {recovering ? "Working…" : "Retry"}
+                </button>
+                <button
+                  onClick={() => void recover("cancel-payment")}
+                  disabled={recovering}
+                  className="whitespace-nowrap rounded-full border border-white/10 px-4 py-1.5 text-xs text-slate-300 hover:border-white/20 disabled:opacity-50"
+                >
+                  Cancel campaign
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

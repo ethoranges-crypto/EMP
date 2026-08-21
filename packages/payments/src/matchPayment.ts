@@ -21,6 +21,8 @@ export interface MatchPaymentParams {
   observed: ObservedTransfer[];
   /** tx hashes already consumed by a different payment — guards against double-counting one payment. */
   alreadyConsumedTxHashes: ReadonlySet<string>;
+  /** Injectable for tests; defaults to the real current time. */
+  now?: Date;
 }
 
 /**
@@ -32,16 +34,24 @@ export interface MatchPaymentParams {
  * MVP verification), then classifies the best candidate:
  *   same token + amount >= expected + within window -> VERIFIED
  *   otherwise, the most specific failure reason on the first candidate tx.
+ *
+ * A payment with *no* candidate transfer at all stays AWAITING only while
+ * its window hasn't closed yet — once `now` passes `windowExpiresAt` with
+ * nothing ever having arrived, this returns LATE instead of AWAITING
+ * forever. Without this, a payment that's never paid at all has no way to
+ * ever leave AWAITING (unlike a late-but-real transfer, which the loop
+ * below already classifies as LATE) — the campaign it belongs to would
+ * wait indefinitely with no path to retry or cancel.
  */
 export function matchPayment(params: MatchPaymentParams): PaymentVerificationResult {
-  const { expected, observed, alreadyConsumedTxHashes } = params;
+  const { expected, observed, alreadyConsumedTxHashes, now = new Date() } = params;
 
   const fromSender = observed
     .filter((t) => t.fromAddress.toLowerCase() === expected.fromAddress.toLowerCase())
     .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
 
   if (fromSender.length === 0) {
-    return { status: "AWAITING" };
+    return now > expected.windowExpiresAt ? { status: "LATE" } : { status: "AWAITING" };
   }
 
   for (const transfer of fromSender) {

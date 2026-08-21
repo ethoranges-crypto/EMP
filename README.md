@@ -260,6 +260,38 @@ the `ETHEREUM_RPC_URL`/`ETHEREUM_TREASURY_ADDRESS` pair to drop into the repo-ro
 deployed Safe's address and a test-only owner key. Re-run it whenever `verifyOwner.ts` or the SIWE
 verify route changes, not as a one-off.
 
+### Testing a real Telegram send locally
+
+Telegram's Bot API rejects an inline keyboard button whose URL isn't a public HTTPS address (400
+"Wrong HTTP URL") — so a campaign with CTAs can't actually be delivered while `REDIRECT_BASE_URL`
+points at `localhost`, even though everything else about local dev works fine. A campaign with no
+CTAs sends fine locally regardless; this only matters once you want to see the CTA buttons for real.
+
+The fix is a public HTTPS tunnel back to your own machine, so `REDIRECT_BASE_URL` becomes a real
+HTTPS host while `/r/:token` still resolves to your local dev server — no separate deployment needed:
+
+1. Start `apps/web` locally as usual (`pnpm --filter @emp/web dev`, default port 3000).
+2. Start a tunnel pointed at that port — either works the same way here:
+   - `ngrok http 3000` (needs a free ngrok account + `ngrok config add-authtoken ...` once)
+   - `cloudflared tunnel --url http://localhost:3000` (no account needed)
+3. Copy the `https://...` URL the tunnel prints and set it in the root `.env`:
+   ```
+   REDIRECT_BASE_URL=https://<the-printed-subdomain>/r
+   ```
+4. Restart `apps/worker` (env is only read at boot — see `packages/config/src/rootEnv.ts`). It logs
+   a warning at startup if `REDIRECT_BASE_URL` still isn't a public HTTPS address, so you don't have
+   to wait for a send to find out.
+
+That's the whole change — nothing about `/r/:token`'s own code path is different. A click on the
+CTA button hits the tunnel's public URL, which forwards straight through to your local dev server's
+`/r/:token` redirect handler, which logs the click and 302s to the real target exactly as it would
+in production. The tunnel URL changes every time you restart it (unless you're on a paid ngrok plan
+with a reserved domain), so re-run step 3 each session.
+
+If you don't need to see real Telegram messages land — just want to confirm a campaign reaches
+`SENDING` and delivery counts tick up — there's no simpler local option than the tunnel for anything
+with CTAs; skipping CTAs entirely (an empty `ctas` array at compose) is the only way to avoid it.
+
 ### Known gap — flagged, not yet closed
 
 **Telegram code redemption has still only been exercised via substitution, never a live Telegram

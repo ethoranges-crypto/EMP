@@ -55,22 +55,53 @@ describe("matchPayment — payment verification (must not break)", () => {
     expect(result.status).toBe("VERIFIED");
   });
 
-  it("stays AWAITING when nothing has arrived from the sender yet", () => {
+  it("stays AWAITING when nothing has arrived from the sender yet, within the window", () => {
     const result = matchPayment({
       expected: expected(),
       observed: [],
       alreadyConsumedTxHashes: new Set(),
+      now: new Date("2026-01-01T09:00:00Z"),
     });
     expect(result).toEqual({ status: "AWAITING" });
   });
 
-  it("ignores transfers from a different address entirely", () => {
+  it("ignores transfers from a different address entirely, within the window", () => {
     const result = matchPayment({
       expected: expected(),
       observed: [transfer({ fromAddress: "0x0000000000000000000000000000000000dead" })],
       alreadyConsumedTxHashes: new Set(),
+      now: new Date("2026-01-01T09:00:00Z"),
     });
     expect(result).toEqual({ status: "AWAITING" });
+  });
+
+  it("flags LATE once the window closes with nothing ever having arrived — the stuck-forever bug", () => {
+    const result = matchPayment({
+      expected: expected({ windowExpiresAt: new Date("2026-01-01T09:00:00Z") }),
+      observed: [],
+      alreadyConsumedTxHashes: new Set(),
+      now: new Date("2026-01-01T10:00:00Z"),
+    });
+    expect(result).toEqual({ status: "LATE" });
+  });
+
+  it("flags LATE once the window closes even when the only observed transfers are from someone else", () => {
+    const result = matchPayment({
+      expected: expected({ windowExpiresAt: new Date("2026-01-01T09:00:00Z") }),
+      observed: [transfer({ fromAddress: "0x0000000000000000000000000000000000dead" })],
+      alreadyConsumedTxHashes: new Set(),
+      now: new Date("2026-01-01T10:00:00Z"),
+    });
+    expect(result).toEqual({ status: "LATE" });
+  });
+
+  it("defaults `now` to the real current time when not passed", () => {
+    const result = matchPayment({
+      expected: expected({ windowExpiresAt: new Date("2000-01-01T00:00:00Z") }),
+      observed: [],
+      alreadyConsumedTxHashes: new Set(),
+    });
+    expect(result).toEqual({ status: "LATE" });
   });
 
   it("flags underpayment", () => {

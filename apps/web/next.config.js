@@ -22,9 +22,30 @@ function findRepoRoot(startDir) {
   }
 }
 
-const repoRoot = findRepoRoot(__dirname);
+// Prefer cwd (where Next was actually invoked from right now) over
+// __dirname, same reasoning as packages/config/src/rootEnv.ts — __dirname
+// happens to be safe here too (this file isn't reached through any
+// node_modules symlink/junction, it's part of the app itself), but trying
+// cwd first keeps this consistent with that module and with how a repo
+// move is diagnosed.
+// override: true — see packages/config/src/rootEnv.ts's doc comment for
+// why: dotenv's default silently leaves an already-present (even blank)
+// process.env key untouched, which is exactly how a stray Windows
+// user/system env var or leftover shell export can make this file's real
+// value never take effect with no error at all.
+const repoRoot = findRepoRoot(process.cwd()) ?? findRepoRoot(__dirname);
 if (repoRoot) {
-  dotenv.config({ path: path.join(repoRoot, ".env") });
+  const envPath = path.join(repoRoot, ".env");
+  const result = dotenv.config({ path: envPath, override: true });
+  if (result.error) {
+    console.warn(`[next.config.js] Found repo root at ${repoRoot} but could not read ${envPath}:`, result.error);
+  } else {
+    console.log(`[next.config.js] Loaded ${Object.keys(result.parsed ?? {}).length} environment variable(s) from ${envPath}`);
+  }
+} else {
+  console.warn(
+    `[next.config.js] Could not find pnpm-workspace.yaml above cwd (${process.cwd()}) or ${__dirname} — no root .env loaded.`,
+  );
 }
 
 /** @type {import('next').NextConfig} */

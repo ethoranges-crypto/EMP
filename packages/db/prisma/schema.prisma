@@ -261,6 +261,14 @@ model CampaignRecipient {
   campaignId     String
   chatId         String
   deliveryStatus DeliveryStatus @default(SENT)
+  /// Null until the worker has made (at least) one send attempt for this
+  /// recipient — apps/worker's maybeCompleteCampaign uses "every recipient
+  /// has a non-null attemptedAt" as the signal that a campaign is done
+  /// sending (SENDING -> COMPLETE). Deliberately separate from
+  /// deliveryStatus, whose *default* (SENT) describes an outcome, not
+  /// whether a send was ever tried — this column exists so "attempted" and
+  /// "attempted successfully" can't be conflated.
+  attemptedAt    DateTime?
 
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 

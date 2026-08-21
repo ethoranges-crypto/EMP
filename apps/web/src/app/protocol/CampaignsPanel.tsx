@@ -54,6 +54,26 @@ export function CampaignsPanel({
                   ${usd.toFixed(2)} to reach {c.snapshotCount} user{c.snapshotCount === 1 ? "" : "s"}
                 </p>
               )}
+              {c.status === "SENDING" && (
+                <p className="flex items-center gap-1.5 text-xs text-pulse-cyan">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pulse-cyan" aria-hidden="true" />
+                  Sending — this updates on its own once every recipient has been attempted.
+                </p>
+              )}
+              {c.status === "COMPLETE" && (
+                <div className="mt-1 flex flex-col gap-1 rounded-lg border border-pulse-cyan/30 bg-void/40 p-3">
+                  <p className="text-sm font-medium text-pulse-cyan">Campaign sent</p>
+                  {c.metrics ? (
+                    <p className="text-xs text-slate-400">
+                      Delivered to {c.metrics.delivered.count} user{c.metrics.delivered.count === 1 ? "" : "s"} (
+                      {c.metrics.delivered.ratePct}%)
+                      {c.ctaCount > 0 && ` · ${c.metrics.clicks.ratePct}% clicked a CTA`}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-500">Delivery and click metrics unavailable.</p>
+                  )}
+                </div>
+              )}
               {(c.status === "DRAFT" || c.status === "REJECTED") && (
                 <button
                   onClick={() => onCompose(c.id)}

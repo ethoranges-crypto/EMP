@@ -29,6 +29,12 @@ export type CampaignStatus =
   | "COMPLETE"
   | "CANCELLED";
 
+/** Delivered/click aggregates — present only once a campaign is COMPLETE. Always counts/rates, never per-user data (CLAUDE.md rule 1). */
+export interface ProtocolCampaignMetrics {
+  delivered: { count: number; ratePct: number };
+  clicks: { total: number; ratePct: number };
+}
+
 /** One row from GET /api/protocol/campaigns. */
 export interface ProtocolCampaign {
   id: string;
@@ -47,6 +53,8 @@ export interface ProtocolCampaign {
   /** The admin's reason, present only while status is currently REJECTED. */
   rejectionReason: string | null;
   createdAt: string;
+  /** Non-null only once status is COMPLETE. */
+  metrics: ProtocolCampaignMetrics | null;
 }
 
 /**

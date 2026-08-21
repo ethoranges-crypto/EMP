@@ -64,6 +64,17 @@ export default function ProtocolJourneyPage() {
     void fetchCampaigns();
   }, [me?.status, fetchCampaigns]);
 
+  // Poll while any campaign is SENDING so it flips to COMPLETE live —
+  // otherwise nothing ever re-fetches this list once a campaign leaves
+  // AWAITING_PAYMENT (the payment panel that was polling closes as soon as
+  // SENDING first appears), and it would sit there looking stuck even
+  // after the worker finishes.
+  useEffect(() => {
+    if (!campaigns.some((c) => c.status === "SENDING")) return;
+    const id = setInterval(() => void fetchCampaigns(), 5000);
+    return () => clearInterval(id);
+  }, [campaigns, fetchCampaigns]);
+
   // Auto-clears the "Draft saved." / "Submitted for review." badge a
   // few seconds after ComposePanel collapses back into this list.
   useEffect(() => {

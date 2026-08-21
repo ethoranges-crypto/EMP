@@ -7,6 +7,7 @@ import { prisma } from "@emp/db";
 import { getRedisConnection } from "../redis.js";
 import { PAYMENT_WATCH_QUEUE_NAME } from "../queues/paymentWatchQueue.js";
 import { createTelegramSendQueue, type TelegramSendJobData } from "../queues/telegramSendQueue.js";
+import { maybeCompleteCampaign } from "../campaignCompletion.js";
 
 /**
  * On each tick: for every payable chain (RPC-configured AND
@@ -101,15 +102,19 @@ async function sendCampaignOnPaymentVerified(
     console.error(
       `[worker] Campaign ${campaignId}: REDIRECT_BASE_URL ("${env.REDIRECT_BASE_URL}") produces a CTA URL ` +
         `Telegram will reject (e.g. "${invalidCta.redirectUrl}") — it must be a public HTTPS host, not ` +
-        "localhost/http. Fix the env var and restart the worker; this campaign will stay marked SENDING " +
-        "with 0 delivered until it's resent manually.",
+        "localhost/http. Fix the env var and restart the worker before sending another campaign with CTAs; " +
+        "this one is now COMPLETE with 0 delivered.",
     );
     await prisma.deliveryEvent.upsert({
       where: { campaignId_status: { campaignId, status: "FAILED" } },
       create: { campaignId, status: "FAILED", count: campaign.recipients.length },
       update: { count: { increment: campaign.recipients.length } },
     });
-    await prisma.campaignRecipient.updateMany({ where: { campaignId }, data: { deliveryStatus: "FAILED" } });
+    await prisma.campaignRecipient.updateMany({
+      where: { campaignId },
+      data: { deliveryStatus: "FAILED", attemptedAt: new Date() },
+    });
+    await maybeCompleteCampaign(campaignId);
     return;
   }
 
@@ -126,4 +131,9 @@ async function sendCampaignOnPaymentVerified(
   }));
 
   await sendQueue.addBulk(jobs);
+
+  // Handles the zero-recipient edge case (an approved campaign whose
+  // audience snapshot was empty) — no jobs get enqueued, so nothing would
+  // otherwise ever trigger the completion check.
+  await maybeCompleteCampaign(campaignId);
 }

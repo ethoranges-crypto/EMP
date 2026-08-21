@@ -1,10 +1,13 @@
 import type { Bot } from "grammy";
 import { InlineKeyboard, InputFile } from "grammy";
 import { isTelegramCompatibleUrl } from "./urlValidation.js";
+import { buildTrustedButtonText } from "./trustLabel.js";
 
 export interface CtaButton {
   label: string;
-  /** Already rewritten to the EMP redirect endpoint (/r/:token) by the caller — see apps/web's click tracking. */
+  /** The real destination — never sent to Telegram directly, only used to build the button's visible text (see buildTrustedButtonText) so it always shows where a tap actually leads. */
+  targetUrl: string;
+  /** Already rewritten to the EMP redirect endpoint (/r/:token) by the caller — see apps/web's click tracking. This is what the button actually opens. */
   redirectUrl: string;
 }
 
@@ -55,7 +58,10 @@ export async function sendCampaignMessage(bot: Bot, params: SendCampaignMessageP
     };
   }
 
-  const keyboard = params.ctas.reduce((kb, cta) => kb.url(cta.label, cta.redirectUrl).row(), new InlineKeyboard());
+  const keyboard = params.ctas.reduce(
+    (kb, cta) => kb.url(buildTrustedButtonText(cta.label, cta.targetUrl), cta.redirectUrl).row(),
+    new InlineKeyboard(),
+  );
 
   try {
     if (params.imageData) {

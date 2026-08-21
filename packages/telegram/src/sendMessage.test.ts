@@ -13,7 +13,7 @@ describe("sendCampaignMessage", () => {
     const result = await sendCampaignMessage(bot, {
       chatId: "1",
       text: "hi",
-      ctas: [{ label: "Go", redirectUrl: "http://localhost:3000/r/abc" }],
+      ctas: [{ label: "Go", targetUrl: "https://alchemix.fi/vaults", redirectUrl: "http://localhost:3000/r/abc" }],
     });
 
     expect(sendMessage).not.toHaveBeenCalled();
@@ -31,11 +31,29 @@ describe("sendCampaignMessage", () => {
     const result = await sendCampaignMessage(bot, {
       chatId: "1",
       text: "hi",
-      ctas: [{ label: "Go", redirectUrl: "https://emp.example.com/r/abc" }],
+      ctas: [{ label: "Go", targetUrl: "https://alchemix.fi/vaults", redirectUrl: "https://emp.example.com/r/abc" }],
     });
 
     expect(sendMessage).toHaveBeenCalledOnce();
     expect(result).toEqual({ status: "SENT" });
+  });
+
+  it("builds the button so its visible text shows the real destination, not just the protocol's label", async () => {
+    const sendMessage = vi.fn().mockResolvedValue(undefined);
+    const bot = fakeBot(sendMessage);
+
+    await sendCampaignMessage(bot, {
+      chatId: "1",
+      text: "hi",
+      ctas: [
+        { label: "View Vaults", targetUrl: "https://alchemix.fi/vaults?ref=x", redirectUrl: "https://emp.example.com/r/abc" },
+      ],
+    });
+
+    const [, , options] = sendMessage.mock.calls[0] as [unknown, unknown, { reply_markup: { inline_keyboard: Array<Array<{ text: string; url: string }>> } }];
+    const button = options.reply_markup.inline_keyboard[0]![0]!;
+    expect(button.text).toBe("View Vaults — alchemix.fi");
+    expect(button.url).toBe("https://emp.example.com/r/abc"); // still the tracked redirect, not the real destination
   });
 
   it("sends fine with no CTAs at all regardless of REDIRECT_BASE_URL", async () => {

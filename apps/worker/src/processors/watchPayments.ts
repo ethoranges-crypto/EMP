@@ -87,6 +87,7 @@ async function sendCampaignOnPaymentVerified(
   const env = loadEnv();
   const ctas = campaign.ctas.map((cta) => ({
     label: cta.label,
+    targetUrl: cta.targetUrl,
     redirectUrl: `${env.REDIRECT_BASE_URL}/${cta.redirectToken}`,
   }));
 

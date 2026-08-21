@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isTelegramCompatibleUrl } from "./urlValidation.js";
+import { isLikelyDevTunnelUrl, isTelegramCompatibleUrl } from "./urlValidation.js";
 
 describe("isTelegramCompatibleUrl", () => {
   it("accepts a public HTTPS URL", () => {
@@ -29,5 +29,29 @@ describe("isTelegramCompatibleUrl", () => {
 
   it("accepts an HTTPS tunnel hostname (ngrok/cloudflared style)", () => {
     expect(isTelegramCompatibleUrl("https://abcd-1-2-3-4.ngrok-free.app/r/abc123")).toBe(true);
+  });
+});
+
+describe("isLikelyDevTunnelUrl", () => {
+  it.each([
+    "https://abcd-1-2-3-4.ngrok-free.app/r/abc",
+    "https://abcd1234.ngrok.io/r/abc",
+    "https://abcd1234.ngrok.app/r/abc",
+    "https://random-words-here.trycloudflare.com/r/abc",
+    "https://something.loca.lt/r/abc",
+    "https://something.localtunnel.me/r/abc",
+    "https://something.serveo.net/r/abc",
+    "https://something.pagekite.me/r/abc",
+  ])("flags %s as a dev tunnel", (url) => {
+    expect(isLikelyDevTunnelUrl(url)).toBe(true);
+  });
+
+  it("does not flag a real branded domain", () => {
+    expect(isLikelyDevTunnelUrl("https://emp.link/r/abc")).toBe(false);
+    expect(isLikelyDevTunnelUrl("https://links.alchemix.fi/r/abc")).toBe(false);
+  });
+
+  it("does not flag a malformed URL (isTelegramCompatibleUrl already rejects those separately)", () => {
+    expect(isLikelyDevTunnelUrl("not-a-url")).toBe(false);
   });
 });

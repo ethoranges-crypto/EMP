@@ -8,7 +8,7 @@ export interface TelegramSendJobData {
   text: string;
   /** base64, not a raw Buffer — BullMQ JSON-serializes job data, which a Buffer wouldn't survive round-trip. */
   imageBase64?: string;
-  ctas: Array<{ label: string; redirectUrl: string }>;
+  ctas: Array<{ label: string; targetUrl: string; redirectUrl: string }>;
 }
 
 export const TELEGRAM_SEND_QUEUE_NAME = "telegram-send";

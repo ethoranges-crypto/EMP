@@ -1,5 +1,5 @@
 import { getChains, getPayableChains, loadEnv, loadRootEnvFile } from "@emp/config";
-import { isTelegramCompatibleUrl } from "@emp/telegram";
+import { isLikelyDevTunnelUrl, isTelegramCompatibleUrl } from "@emp/telegram";
 import { createPaymentWatchQueue, schedulePaymentWatchTick } from "./queues/paymentWatchQueue.js";
 import { createPaymentWatchWorker } from "./processors/watchPayments.js";
 import { createTelegramSendWorker } from "./processors/sendMessage.js";
@@ -54,6 +54,18 @@ if (!isTelegramCompatibleUrl(`${env.REDIRECT_BASE_URL}/sample-token`)) {
       "reject any CTA button built from it. Campaigns with no CTAs still send fine; anything with a CTA will " +
       "fail for every recipient until this points at a real HTTPS host (a public tunnel like ngrok/cloudflared " +
       "works for local testing — see the README).",
+  );
+} else if (isLikelyDevTunnelUrl(env.REDIRECT_BASE_URL)) {
+  // A separate, softer nudge from the check above: this URL *works* (it's
+  // valid HTTPS), but a randomized ngrok/cloudflared-style subdomain reads
+  // as exactly the kind of unfamiliar link a wary recipient is right to
+  // distrust (see the CTA-link-trust discussion this fix came out of).
+  // Fine for local testing; swap in a real branded domain before sending
+  // to real users.
+  console.warn(
+    `[worker] REDIRECT_BASE_URL ("${env.REDIRECT_BASE_URL}") looks like a temporary dev tunnel — fine for local ` +
+      "testing, but recipients will see this domain on every CTA button. Point it at a real, stable domain you " +
+      "control before sending to real users.",
   );
 }
 

@@ -120,7 +120,7 @@ export default function AdminPage() {
           <ProtocolsPanel protocols={protocols} onChange={() => void fetchProtocols()} />
           <CampaignsModerationPanel campaigns={inReviewCampaigns} onChange={() => void fetchInReviewCampaigns()} />
           <PlatformSettingsPanel settings={platformSettings} onChange={() => void fetchPlatformSettings()} />
-          <TreasurySettingsPanel chains={treasuryChains} onChange={() => void fetchTreasuryChains()} />
+          <TreasurySettingsPanel chains={treasuryChains} />
           <CategoriesPanel categories={categories} onChange={() => void fetchCategories()} />
           <button
             onClick={handleSignOut}

@@ -346,20 +346,12 @@ model PlatformSettings {
   @@map("platform_settings")
 }
 
-/// Per-chain EMP treasury address (CLAUDE.md Payments: "one EMP treasury
-/// address per chain"). Admin-configurable via /api/admin/treasury — not env
-/// (contrast with rpcUrl, which stays env-only since it can embed a
-/// provider secret). A chain is payable (see getPayableChains in @emp/core)
-/// only once it has both an RPC url (env, @emp/config) and a row here.
-model ChainTreasury {
-  id              String   @id @default(cuid())
-  /// Matches a ChainDefinition.key from @emp/config's CHAIN_DEFINITIONS.
-  chain           String   @unique
-  treasuryAddress String
-  updatedAt       DateTime @updatedAt
-
-  @@map("chain_treasuries")
-}
+// Per-chain EMP treasury address (CLAUDE.md Payments: "one EMP treasury
+// address per chain") used to live here, admin-configurable via
+// /api/admin/treasury. Moved to env-only (`{CHAIN}_TREASURY_ADDRESS`, see
+// @emp/config's chains.ts) — it's the single highest-value config in the
+// system, so changing it now requires server/deploy access rather than just
+// an admin session. See the migration that dropped this table.
 
 model AdminAction {
   id         String   @id @default(cuid())

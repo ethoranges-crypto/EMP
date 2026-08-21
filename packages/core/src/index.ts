@@ -17,8 +17,6 @@ export * from "./campaigns/submitForReview.js";
 export * from "./campaigns/prismaSubmitForReviewStore.js";
 export * from "./campaigns/setPaymentMethod.js";
 export * from "./campaigns/prismaSetPaymentMethodStore.js";
-export * from "./payments/treasuryConfig.js";
-export * from "./payments/prismaTreasuryStore.js";
 export * from "./safe/verifyOwner.js";
 export * from "./admin/listPendingProtocols.js";
 export * from "./admin/listInReviewCampaigns.js";

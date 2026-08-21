@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@emp/db";
+import { getChain } from "@emp/config";
 import {
   CampaignNotEditableError,
   CampaignNotFoundError,
@@ -8,7 +9,6 @@ import {
   MessageTooLongError,
   TooManyCtasError,
   createPrismaComposeStore,
-  createPrismaTreasuryStore,
   saveCampaignCompose,
 } from "@emp/core";
 import { UnauthorizedError, requireRole } from "@/lib/session";
@@ -67,11 +67,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     }
 
     const latestPayment = campaign.payments[0] ?? null;
-    const treasuryAddress = latestPayment
-      ? await createPrismaTreasuryStore(prisma)
-          .listTreasuryAddresses()
-          .then((treasuries) => treasuries[latestPayment.chain] ?? null)
-      : null;
+    const treasuryAddress = latestPayment ? (getChain(latestPayment.chain)?.treasuryAddress ?? null) : null;
 
     return NextResponse.json({
       id: campaign.id,

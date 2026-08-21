@@ -1,6 +1,9 @@
-import { loadEnv } from "@emp/config";
+import { loadEnv, loadRootEnvFile } from "@emp/config";
 import { createBotClient } from "@emp/telegram";
 import { registerStartHandler } from "./handlers/start.js";
+
+// Explicit and first — same reasoning as apps/worker/src/index.ts.
+loadRootEnvFile();
 
 const env = loadEnv();
 const bot = createBotClient(env.TELEGRAM_BOT_TOKEN);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@emp/db";
-import { loadEnv } from "@emp/config";
+import { getPayableChains, loadEnv } from "@emp/config";
 import {
   CampaignCostNotLockedError,
   CampaignNotApprovedError,
@@ -9,8 +9,6 @@ import {
   InvalidPaymentChainError,
   InvalidPaymentTokenError,
   createPrismaSetPaymentMethodStore,
-  createPrismaTreasuryStore,
-  getPayableChains,
   setCampaignPaymentMethod,
 } from "@emp/core";
 import { UnauthorizedError, requireRole } from "@/lib/session";
@@ -27,10 +25,10 @@ interface PatchBody {
  * APPROVED-only gate, validates chain/token for real, and immediately opens
  * the payment window (creates the AWAITING Payment row, moves the campaign
  * to AWAITING_PAYMENT) — validChainKeys comes from getPayableChains()
- * (@emp/core), the chains EMP actually has an RPC (env) + admin-set
- * treasury (DB) for, not a hardcoded client list. fromAddress is the
- * protocol's own authenticated wallet (the SIWE session address) — the
- * automated on-chain watcher (apps/worker) keys off it, never a
+ * (@emp/config), the chains EMP actually has an RPC AND treasury address
+ * (both env — see chains.ts) for, not a hardcoded client list. fromAddress
+ * is the protocol's own authenticated wallet (the SIWE session address) —
+ * the automated on-chain watcher (apps/worker) keys off it, never a
  * protocol-chosen value.
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -40,8 +38,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { chain, token } = (await request.json()) as PatchBody;
 
     const store = createPrismaSetPaymentMethodStore(prisma);
-    const treasuryStore = createPrismaTreasuryStore(prisma);
-    const payableChains = await getPayableChains(treasuryStore);
+    const payableChains = getPayableChains();
 
     await setCampaignPaymentMethod(store, {
       campaignId: id,

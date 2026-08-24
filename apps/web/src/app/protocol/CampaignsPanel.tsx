@@ -1,6 +1,7 @@
 "use client";
 
 import type { ProtocolCampaign } from "./types";
+import { formatScheduledSendAt } from "./schedule";
 
 export function CampaignsPanel({
   campaigns,
@@ -54,6 +55,24 @@ export function CampaignsPanel({
                   ${usd.toFixed(2)} to reach {c.snapshotCount} user{c.snapshotCount === 1 ? "" : "s"}
                 </p>
               )}
+              {(c.status === "DRAFT" ||
+                c.status === "IN_REVIEW" ||
+                c.status === "APPROVED" ||
+                c.status === "REJECTED" ||
+                c.status === "AWAITING_PAYMENT") &&
+                c.scheduledSendAt && (
+                  <p className="text-xs text-slate-500">Set to send: {formatScheduledSendAt(c.scheduledSendAt)}</p>
+                )}
+              {c.status === "SCHEDULED" && (
+                <div className="mt-1 flex flex-col gap-1 rounded-lg border border-pulse-violet/30 bg-void/40 p-3">
+                  <p className="text-sm font-medium text-pulse-violet">Scheduled — paid, not yet sent</p>
+                  {c.scheduledSendAt ? (
+                    <p className="text-xs text-slate-400">Sends at {formatScheduledSendAt(c.scheduledSendAt)}</p>
+                  ) : (
+                    <p className="text-xs text-slate-400">No send time set yet — pick one below.</p>
+                  )}
+                </div>
+              )}
               {c.status === "SENDING" && (
                 <p className="flex items-center gap-1.5 text-xs text-pulse-cyan">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pulse-cyan" aria-hidden="true" />
@@ -82,12 +101,12 @@ export function CampaignsPanel({
                   {c.hasComposeContent ? "Edit compose" : "Compose"}
                 </button>
               )}
-              {(c.status === "APPROVED" || c.status === "AWAITING_PAYMENT") && (
+              {(c.status === "APPROVED" || c.status === "AWAITING_PAYMENT" || c.status === "SCHEDULED") && (
                 <button
                   onClick={() => onPay(c.id)}
                   className="mt-1 self-start whitespace-nowrap rounded-full bg-pulse-cyan px-4 py-1.5 text-xs font-medium text-void hover:shadow-glow"
                 >
-                  {c.status === "APPROVED" ? "Pay" : "View payment"}
+                  {c.status === "APPROVED" ? "Pay" : c.status === "SCHEDULED" ? "Manage schedule" : "View payment"}
                 </button>
               )}
             </div>

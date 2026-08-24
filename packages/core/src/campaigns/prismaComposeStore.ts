@@ -16,14 +16,14 @@ export function createPrismaComposeStore(prisma: PrismaClient): ComposePort {
       return { protocolId: campaign.protocolId, status: campaign.status, hasImage: campaign.imageMimeType !== null };
     },
 
-    async saveCompose({ campaignId, bodyText, ctas }) {
+    async saveCompose({ campaignId, bodyText, ctas, scheduledSendAt }) {
       // Replaces the whole CTA set on every save — simplest correct model
       // for a still-DRAFT campaign (nothing has been sent, so there are no
       // real clicks against the old tokens to preserve; ClickEvent cascades
       // with its Cta on delete).
       await prisma.$transaction([
         prisma.cta.deleteMany({ where: { campaignId } }),
-        prisma.campaign.update({ where: { id: campaignId }, data: { bodyText } }),
+        prisma.campaign.update({ where: { id: campaignId }, data: { bodyText, scheduledSendAt } }),
         ...(ctas.length > 0
           ? [
               prisma.cta.createMany({

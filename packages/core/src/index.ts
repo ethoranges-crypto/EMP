@@ -19,6 +19,8 @@ export * from "./campaigns/setPaymentMethod.js";
 export * from "./campaigns/prismaSetPaymentMethodStore.js";
 export * from "./campaigns/paymentWindowRecovery.js";
 export * from "./campaigns/prismaPaymentWindowRecoveryStore.js";
+export * from "./campaigns/rescheduleCampaign.js";
+export * from "./campaigns/prismaRescheduleCampaignStore.js";
 export * from "./safe/verifyOwner.js";
 export * from "./admin/listPendingProtocols.js";
 export * from "./admin/listInReviewCampaigns.js";

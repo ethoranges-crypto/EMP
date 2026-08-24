@@ -4,6 +4,7 @@ export type CampaignStatus =
   | "APPROVED"
   | "REJECTED"
   | "AWAITING_PAYMENT"
+  | "SCHEDULED"
   | "SENDING"
   | "COMPLETE"
   | "CANCELLED";
@@ -30,13 +31,26 @@ export type CampaignStatus =
  * payment there in the first place) — otherwise a still-live payment
  * window and a fresh retry attempt could both be open at once, and an
  * on-chain transfer arriving late could match either.
+ *
+ * AWAITING_PAYMENT -> SCHEDULED is the scheduled-sending branch of the same
+ * payment-verified gate that used to only ever go to SENDING: if the
+ * protocol chose a future send time (Campaign.scheduledSendAt) at compose,
+ * verification holds it here instead of sending immediately (watchPayments.ts).
+ * SCHEDULED -> SENDING fires once that time arrives, picked up by the same
+ * worker tick that watches payments (see fireDueScheduledCampaigns). A
+ * SCHEDULED campaign is already paid — rescheduling or cancelling its send
+ * time (rescheduleCampaign.ts) is a plain field update, not a status
+ * transition, so there's deliberately no SCHEDULED -> CANCELLED here: that
+ * would be a dead end requiring a brand-new campaign, which the "cancel and
+ * reschedule without re-paying" requirement explicitly rules out.
  */
 const ALLOWED_TRANSITIONS: Record<CampaignStatus, CampaignStatus[]> = {
   DRAFT: ["IN_REVIEW"],
   IN_REVIEW: ["APPROVED", "REJECTED"],
   APPROVED: ["AWAITING_PAYMENT"],
   REJECTED: ["IN_REVIEW"],
-  AWAITING_PAYMENT: ["SENDING", "APPROVED", "CANCELLED"],
+  AWAITING_PAYMENT: ["SENDING", "SCHEDULED", "APPROVED", "CANCELLED"],
+  SCHEDULED: ["SENDING"],
   SENDING: ["COMPLETE"],
   COMPLETE: [],
   CANCELLED: [],

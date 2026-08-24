@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { PAYMENT_TOKENS, type PaymentToken } from "@emp/config/paymentTokens";
 import type { CampaignDetail } from "./types";
+import { formatScheduledSendAt, isoToLocalInputValue, localInputValueToIso, localTimeZoneName } from "./schedule";
 
 interface ChainOption {
   key: string;
@@ -43,6 +44,8 @@ export function PaymentPanel({
   const [recovering, setRecovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rescheduleLocal, setRescheduleLocal] = useState("");
 
   const fetchDetail = useCallback(async () => {
     const res = await fetch(`/api/protocol/campaigns/${campaignId}`);
@@ -51,6 +54,7 @@ export function PaymentPanel({
     setDetail(data);
     if (data.chain) setChain(data.chain);
     if (data.token) setToken(data.token);
+    setRescheduleLocal(data.scheduledSendAt ? isoToLocalInputValue(data.scheduledSendAt) : "");
   }, [campaignId]);
 
   useEffect(() => {
@@ -73,9 +77,13 @@ export function PaymentPanel({
 
   // Once the payment window is open and still awaiting, poll for the
   // automated watcher's verdict — no read receipts / push here, same
-  // "poll while pending" pattern as the protocol-application status.
+  // "poll while pending" pattern as the protocol-application status. Also
+  // poll while SCHEDULED so this panel picks up the worker's due-scan
+  // firing the send live, instead of only ever refreshing on a manual
+  // reschedule/cancel action.
   useEffect(() => {
-    if (detail?.status !== "AWAITING_PAYMENT" || detail.payment?.status !== "AWAITING") return;
+    const awaitingVerdict = detail?.status === "AWAITING_PAYMENT" && detail.payment?.status === "AWAITING";
+    if (!awaitingVerdict && detail?.status !== "SCHEDULED") return;
     const id = setInterval(() => void fetchDetail(), 5000);
     return () => clearInterval(id);
   }, [detail?.status, detail?.payment?.status, fetchDetail]);
@@ -86,6 +94,23 @@ export function PaymentPanel({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail?.status]);
+
+  async function saveReschedule(scheduledSendAt: string | null) {
+    setRescheduling(true);
+    setError(null);
+    const res = await fetch(`/api/protocol/campaigns/${campaignId}/reschedule`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scheduledSendAt }),
+    });
+    setRescheduling(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setError(data.error ?? "Could not update the schedule.");
+      return;
+    }
+    void fetchDetail();
+  }
 
   async function save() {
     setSaving(true);
@@ -181,6 +206,7 @@ export function PaymentPanel({
             few minutes); no need to refresh or contact EMP.
           </p>
           {detail.payment.status === "AWAITING" && <p className="text-sm text-pulse-cyan">Waiting for payment…</p>}
+          {detail.payment.status === "VERIFIED" && <p className="text-sm text-pulse-cyan">Payment verified.</p>}
           {detail.payment.status === "UNDERPAID" && (
             <p className="text-sm text-red-400">A payment arrived but was short of the amount owed.</p>
           )}
@@ -194,7 +220,7 @@ export function PaymentPanel({
             <p className="text-sm text-red-400">That transaction was already used for a different payment.</p>
           )}
 
-          {detail.payment.status !== "AWAITING" && (
+          {detail.payment.status !== "AWAITING" && detail.payment.status !== "VERIFIED" && (
             <div className="flex flex-col gap-2 border-t border-white/10 pt-3">
               <p className="text-xs text-slate-500">
                 This payment attempt didn&apos;t go through — retry with a fresh payment window, or cancel this
@@ -218,6 +244,47 @@ export function PaymentPanel({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {detail.status === "SCHEDULED" && (
+        <div className="flex flex-col gap-3 rounded-lg border border-pulse-violet/30 bg-void/40 p-4">
+          <p className="text-xs uppercase tracking-wide text-slate-500">Send time</p>
+          {detail.scheduledSendAt ? (
+            <p className="text-sm text-pulse-violet">Scheduled for {formatScheduledSendAt(detail.scheduledSendAt)}</p>
+          ) : (
+            <p className="text-sm text-slate-400">No send time set — pick one below.</p>
+          )}
+          <div className="flex flex-col gap-1">
+            <input
+              type="datetime-local"
+              value={rescheduleLocal}
+              onChange={(e) => setRescheduleLocal(e.target.value)}
+              className="w-fit rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100 outline-none focus:border-pulse-violet/50"
+            />
+            <span className="text-xs text-slate-500">Your local time — {localTimeZoneName()}.</span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => rescheduleLocal && void saveReschedule(localInputValueToIso(rescheduleLocal))}
+              disabled={rescheduling || !rescheduleLocal}
+              className="whitespace-nowrap rounded-full bg-pulse-violet px-4 py-1.5 text-xs font-medium text-void transition hover:shadow-glow disabled:opacity-50"
+            >
+              {rescheduling ? "Saving…" : detail.scheduledSendAt ? "Save new time" : "Schedule send"}
+            </button>
+            {detail.scheduledSendAt && (
+              <button
+                onClick={() => void saveReschedule(null)}
+                disabled={rescheduling}
+                className="whitespace-nowrap rounded-full border border-white/10 px-4 py-1.5 text-xs text-slate-300 hover:border-white/20 disabled:opacity-50"
+              >
+                Cancel scheduled send
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-slate-500">
+            Already paid — changing or cancelling the send time never requires paying again.
+          </p>
         </div>
       )}
 

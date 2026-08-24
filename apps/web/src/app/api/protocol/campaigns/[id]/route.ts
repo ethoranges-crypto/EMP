@@ -6,6 +6,7 @@ import {
   CampaignNotFoundError,
   CampaignNotOwnedError,
   InvalidCtaError,
+  InvalidScheduledSendAtError,
   MessageTooLongError,
   TooManyCtasError,
   createPrismaComposeStore,
@@ -51,6 +52,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         snapshotCount: true,
         costAmount: true,
         createdAt: true,
+        scheduledSendAt: true,
         categories: { select: { category: { select: { name: true } } } },
         ctas: { select: { id: true, label: true, targetUrl: true } },
         // Same "only the latest review matters" reasoning as the campaigns list GET.
@@ -71,7 +73,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     // APPROVED), campaign.payments[0] is still that old LATE/UNDERPAID/etc.
     // row until a new one is opened; showing it here would make the Pay
     // panel display a stale failure instead of the fresh chain/token picker.
-    const showPayment = campaign.status === "AWAITING_PAYMENT" || campaign.status === "SENDING" || campaign.status === "COMPLETE";
+    // SCHEDULED is included — a scheduled-but-not-yet-fired campaign is
+    // already paid (its Payment row is VERIFIED), so the payment summary
+    // stays visible the whole time it's holding for its send time.
+    const showPayment =
+      campaign.status === "AWAITING_PAYMENT" ||
+      campaign.status === "SCHEDULED" ||
+      campaign.status === "SENDING" ||
+      campaign.status === "COMPLETE";
     const latestPayment = showPayment ? (campaign.payments[0] ?? null) : null;
     const treasuryAddress = latestPayment ? (getChain(latestPayment.chain)?.treasuryAddress ?? null) : null;
 
@@ -89,6 +98,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       costAmount: campaign.costAmount?.toString() ?? null,
       rejectionReason: campaign.status === "REJECTED" ? (campaign.moderationReviews[0]?.reason ?? null) : null,
       createdAt: campaign.createdAt,
+      scheduledSendAt: campaign.scheduledSendAt,
       payment: latestPayment
         ? {
             chain: latestPayment.chain,
@@ -109,6 +119,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 interface PatchBody {
   bodyText: string | null;
   ctas: Array<{ label: string; targetUrl: string }>;
+  /** ISO-8601 string, or null/absent for "send as soon as payment clears" — see updateCompose.ts. */
+  scheduledSendAt?: string | null;
 }
 
 /**
@@ -125,7 +137,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const { accountId } = await requireRole("protocol");
     const { id } = await params;
-    const { bodyText, ctas } = (await request.json()) as PatchBody;
+    const { bodyText, ctas, scheduledSendAt } = (await request.json()) as PatchBody;
 
     const store = createPrismaComposeStore(prisma);
     await saveCampaignCompose(store, {
@@ -133,6 +145,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       protocolId: accountId,
       bodyText: bodyText?.trim() || null,
       ctas: ctas ?? [],
+      scheduledSendAt: scheduledSendAt ?? null,
     });
 
     return NextResponse.json({ ok: true });
@@ -144,6 +157,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (err instanceof InvalidCtaError) return NextResponse.json({ error: err.message }, { status: 400 });
     if (err instanceof MessageTooLongError) return NextResponse.json({ error: err.message }, { status: 400 });
     if (err instanceof TooManyCtasError) return NextResponse.json({ error: err.message }, { status: 400 });
+    if (err instanceof InvalidScheduledSendAtError) return NextResponse.json({ error: err.message }, { status: 400 });
     throw err;
   }
 }

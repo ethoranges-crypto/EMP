@@ -25,6 +25,7 @@ export type CampaignStatus =
   | "APPROVED"
   | "REJECTED"
   | "AWAITING_PAYMENT"
+  | "SCHEDULED"
   | "SENDING"
   | "COMPLETE"
   | "CANCELLED";
@@ -53,6 +54,15 @@ export interface ProtocolCampaign {
   /** The admin's reason, present only while status is currently REJECTED. */
   rejectionReason: string | null;
   createdAt: string;
+  /**
+   * The protocol's chosen send time (UTC ISO string), or null for "send as
+   * soon as payment clears" — set at compose, read again at payment
+   * verification, and (while SCHEDULED) directly editable/clearable via
+   * PATCH .../reschedule. Meaningful mainly once status is SCHEDULED, but
+   * carried through every status so a draft's chosen schedule still shows
+   * before it's even submitted.
+   */
+  scheduledSendAt: string | null;
   /** Non-null only once status is COMPLETE. */
   metrics: ProtocolCampaignMetrics | null;
 }
@@ -108,5 +118,7 @@ export interface CampaignDetail {
   /** The admin's reason, present only while status is currently REJECTED. */
   rejectionReason: string | null;
   createdAt: string;
+  /** See ProtocolCampaign.scheduledSendAt — same field, same meaning. */
+  scheduledSendAt: string | null;
   payment: CampaignPaymentInfo | null;
 }

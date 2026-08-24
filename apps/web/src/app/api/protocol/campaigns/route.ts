@@ -99,6 +99,7 @@ export async function GET() {
           costAmount: c.costAmount?.toString() ?? null,
           rejectionReason: c.status === "REJECTED" ? (c.moderationReviews[0]?.reason ?? null) : null,
           createdAt: c.createdAt,
+          scheduledSendAt: c.scheduledSendAt,
           metrics: metrics
             ? {
                 delivered: metrics.delivered,

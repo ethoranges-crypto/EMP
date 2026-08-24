@@ -48,6 +48,24 @@ describe("campaign status transitions — CLAUDE.md rule 2 (moderate -> pay -> s
     expect(canTransition("DRAFT", "CANCELLED")).toBe(false);
   });
 
+  it("allows payment verification to hold a scheduled campaign instead of sending immediately", () => {
+    expect(canTransition("AWAITING_PAYMENT", "SCHEDULED")).toBe(true);
+  });
+
+  it("allows a scheduled campaign to fire once its send time arrives", () => {
+    expect(canTransition("SCHEDULED", "SENDING")).toBe(true);
+  });
+
+  it("never lets a scheduled campaign skip straight to COMPLETE, or jump into SCHEDULED from outside payment verification", () => {
+    expect(canTransition("SCHEDULED", "COMPLETE")).toBe(false);
+    expect(canTransition("APPROVED", "SCHEDULED")).toBe(false);
+    expect(canTransition("DRAFT", "SCHEDULED")).toBe(false);
+  });
+
+  it("SCHEDULED has no cancel-to-CANCELLED transition — cancelling a scheduled send is a field update (rescheduleCampaign.ts), not a status move, so it's never a dead end requiring a new campaign", () => {
+    expect(canTransition("SCHEDULED", "CANCELLED")).toBe(false);
+  });
+
   it("assertTransition throws InvalidCampaignTransitionError for a disallowed move", () => {
     expect(() => assertTransition("DRAFT", "APPROVED")).toThrow(InvalidCampaignTransitionError);
   });

@@ -64,13 +64,14 @@ export default function ProtocolJourneyPage() {
     void fetchCampaigns();
   }, [me?.status, fetchCampaigns]);
 
-  // Poll while any campaign is SENDING so it flips to COMPLETE live —
+  // Poll while any campaign is SENDING or SCHEDULED so it flips live —
   // otherwise nothing ever re-fetches this list once a campaign leaves
   // AWAITING_PAYMENT (the payment panel that was polling closes as soon as
-  // SENDING first appears), and it would sit there looking stuck even
-  // after the worker finishes.
+  // SENDING/SCHEDULED first appears), and it would sit there looking stuck:
+  // SENDING -> COMPLETE once the worker finishes, or SCHEDULED -> SENDING
+  // once its send time arrives and the worker's due-scan picks it up.
   useEffect(() => {
-    if (!campaigns.some((c) => c.status === "SENDING")) return;
+    if (!campaigns.some((c) => c.status === "SENDING" || c.status === "SCHEDULED")) return;
     const id = setInterval(() => void fetchCampaigns(), 5000);
     return () => clearInterval(id);
   }, [campaigns, fetchCampaigns]);

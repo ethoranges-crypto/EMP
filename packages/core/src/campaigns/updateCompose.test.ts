@@ -6,6 +6,7 @@ import {
   CampaignNotOwnedError,
   CampaignNotEditableError,
   InvalidCtaError,
+  InvalidScheduledSendAtError,
   MessageTooLongError,
   TooManyCtasError,
   type ComposePort,
@@ -25,6 +26,7 @@ const baseParams = {
   protocolId: "protocol-1",
   bodyText: "Come earn yield",
   ctas: [{ label: "Claim", targetUrl: "https://example.com/claim" }],
+  scheduledSendAt: null,
 };
 
 describe("saveCampaignCompose — SPEC §4.3 step 2 / §8", () => {
@@ -190,5 +192,35 @@ describe("saveCampaignCompose — SPEC §4.3 step 2 / §8", () => {
       saveCampaignCompose(port, { ...baseParams, ctas: [{ label: "x", targetUrl: "javascript:evil()" }] }),
     ).rejects.toThrow(CampaignNotOwnedError);
     expect(saveCalled).toBe(false);
+  });
+
+  describe("scheduledSendAt — SPEC's scheduled-sending addendum", () => {
+    it("defaults to null — send as soon as payment clears", async () => {
+      let saved: { scheduledSendAt: Date | null } | undefined;
+      const port = createFakePort({ saveCompose: async (p) => { saved = p; } });
+      await saveCampaignCompose(port, baseParams);
+      expect(saved?.scheduledSendAt).toBeNull();
+    });
+
+    it("parses a valid ISO string into a real Date before handing it to the store", async () => {
+      let saved: { scheduledSendAt: Date | null } | undefined;
+      const port = createFakePort({ saveCompose: async (p) => { saved = p; } });
+      await saveCampaignCompose(port, { ...baseParams, scheduledSendAt: "2026-09-01T15:00:00.000Z" });
+      expect(saved?.scheduledSendAt).toEqual(new Date("2026-09-01T15:00:00.000Z"));
+    });
+
+    it("rejects a scheduledSendAt that doesn't parse to a real date", async () => {
+      const port = createFakePort();
+      await expect(
+        saveCampaignCompose(port, { ...baseParams, scheduledSendAt: "not-a-date" }),
+      ).rejects.toThrow(InvalidScheduledSendAtError);
+    });
+
+    it("doesn't reject a scheduledSendAt already in the past — the past/future-at-verification-time behaviour is watchPayments.ts's job, not compose's", async () => {
+      const port = createFakePort();
+      await expect(
+        saveCampaignCompose(port, { ...baseParams, scheduledSendAt: "2000-01-01T00:00:00.000Z" }),
+      ).resolves.toBeDefined();
+    });
   });
 });

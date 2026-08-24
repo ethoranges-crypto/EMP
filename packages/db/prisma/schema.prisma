@@ -59,6 +59,9 @@ enum CampaignStatus {
   /// underpaid, wrong token, ...) rather than retrying — terminal, no
   /// further transitions. See moderation.ts's cancelPaymentWindow.
   CANCELLED
+  /// Payment verified, but the protocol chose a future send time — holding
+  /// until scheduledSendAt arrives. See moderation.ts and watchPayments.ts.
+  SCHEDULED
 }
 
 /// USDC/USDT only (SPEC §6) — both USD-pegged 1:1, so a locked USD cost is
@@ -231,6 +234,12 @@ model Campaign {
   costAmount    Decimal?       @db.Decimal(38, 18)
   createdAt     DateTime       @default(now())
   approvedAt    DateTime?
+  /// NULL = send immediately once payment verifies (the only behaviour that
+  /// existed before scheduled sending). A non-null value is the protocol's
+  /// chosen send time — set at compose (updateCompose.ts), read at
+  /// payment-verification (watchPayments.ts), and editable directly while
+  /// the campaign is SCHEDULED (rescheduleCampaign.ts). Always UTC.
+  scheduledSendAt DateTime?
 
   protocol          Protocol            @relation(fields: [protocolId], references: [id])
   categories         CampaignCategory[]

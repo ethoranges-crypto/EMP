@@ -5,6 +5,7 @@ import { CTA_LABEL_MAX_LENGTH, MAX_CTAS_PER_CAMPAIGN, telegramTextLimit } from "
 import { CAMPAIGN_IMAGE_ALLOWED_MIME_TYPES, CAMPAIGN_IMAGE_MAX_BYTES } from "@emp/config/campaignLimits";
 import type { CampaignDetail } from "./types";
 import { MessagePreview } from "./MessagePreview";
+import { formatScheduledSendAt, isoToLocalInputValue, localInputValueToIso, localTimeZoneName } from "./schedule";
 
 interface CtaDraft {
   label: string;
@@ -42,6 +43,8 @@ export function ComposePanel({
   const [bodyText, setBodyText] = useState("");
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [ctas, setCtas] = useState<CtaDraft[]>([]);
+  const [sendMode, setSendMode] = useState<"immediate" | "scheduled">("immediate");
+  const [scheduledLocal, setScheduledLocal] = useState("");
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +60,10 @@ export function ComposePanel({
         setBodyText(data.bodyText ?? "");
         setImagePreviewUrl(data.imageUrl);
         setCtas(data.ctas.map((c) => ({ label: c.label, targetUrl: c.targetUrl })));
+        if (data.scheduledSendAt) {
+          setSendMode("scheduled");
+          setScheduledLocal(isoToLocalInputValue(data.scheduledSendAt));
+        }
       });
   }, [campaignId]);
 
@@ -67,9 +74,10 @@ export function ComposePanel({
   const isEditableStatus = detail?.status === "DRAFT" || detail?.status === "REJECTED";
   const hasComposedContent = bodyText.trim().length > 0;
 
+  const scheduleIncomplete = sendMode === "scheduled" && scheduledLocal.trim().length === 0;
   const canSave = useMemo(
-    () => !textOverLimit && ctas.every((c) => c.label.length <= CTA_LABEL_MAX_LENGTH),
-    [textOverLimit, ctas],
+    () => !textOverLimit && ctas.every((c) => c.label.length <= CTA_LABEL_MAX_LENGTH) && !scheduleIncomplete,
+    [textOverLimit, ctas, scheduleIncomplete],
   );
   const canSubmit = canSave && hasComposedContent;
 
@@ -128,10 +136,11 @@ export function ComposePanel({
   async function performSave(): Promise<boolean> {
     setSaving(true);
     setError(null);
+    const scheduledSendAt = sendMode === "scheduled" && scheduledLocal ? localInputValueToIso(scheduledLocal) : null;
     const res = await fetch(`/api/protocol/campaigns/${campaignId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bodyText, ctas }),
+      body: JSON.stringify({ bodyText, ctas, scheduledSendAt }),
     });
     setSaving(false);
     if (!res.ok) {
@@ -301,6 +310,51 @@ export function ComposePanel({
             >
               + Add CTA
             </button>
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-lg border border-white/10 bg-void/40 p-4">
+            <p className="text-sm text-slate-300">When should this send?</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSendMode("immediate")}
+                className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-1.5 text-sm transition ${
+                  sendMode === "immediate"
+                    ? "border-pulse-cyan/60 bg-pulse-cyan/20 text-slate-100"
+                    : "border-white/10 bg-void text-slate-400 hover:border-white/20"
+                }`}
+              >
+                As soon as payment clears
+              </button>
+              <button
+                onClick={() => setSendMode("scheduled")}
+                className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-1.5 text-sm transition ${
+                  sendMode === "scheduled"
+                    ? "border-pulse-violet/60 bg-pulse-violet/20 text-slate-100"
+                    : "border-white/10 bg-void text-slate-400 hover:border-white/20"
+                }`}
+              >
+                Schedule for later
+              </button>
+            </div>
+            {sendMode === "scheduled" && (
+              <div className="flex flex-col gap-1">
+                <input
+                  type="datetime-local"
+                  value={scheduledLocal}
+                  onChange={(e) => setScheduledLocal(e.target.value)}
+                  className="w-fit rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100 outline-none focus:border-pulse-violet/50"
+                />
+                <span className="text-xs text-slate-500">
+                  Your local time — {localTimeZoneName()}. Sends once this time arrives, as long as payment has
+                  already cleared by then.
+                </span>
+                {scheduledLocal && (
+                  <span className="text-xs text-pulse-violet">
+                    Scheduled: {formatScheduledSendAt(localInputValueToIso(scheduledLocal))}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-2">

@@ -55,6 +55,13 @@ export class MessageTooLongError extends Error {
   }
 }
 
+export class InvalidScheduledSendAtError extends Error {
+  constructor(raw: string) {
+    super(`"${raw}" isn't a valid date/time.`);
+    this.name = "InvalidScheduledSendAtError";
+  }
+}
+
 export interface CtaInput {
   label: string;
   targetUrl: string;
@@ -67,7 +74,7 @@ export interface SavedCta extends CtaInput {
 export interface ComposePort {
   /** hasImage reflects whatever the campaign's separate image-upload endpoint has currently saved (see updateCampaignImage.ts) — compose no longer carries the image itself. */
   getCampaignOwnerAndStatus(campaignId: string): Promise<{ protocolId: string; status: string; hasImage: boolean } | null>;
-  saveCompose(params: { campaignId: string; bodyText: string | null; ctas: SavedCta[] }): Promise<void>;
+  saveCompose(params: { campaignId: string; bodyText: string | null; ctas: SavedCta[]; scheduledSendAt: Date | null }): Promise<void>;
   /** Injectable so tests get deterministic tokens instead of real randomness. */
   generateRedirectToken(): string;
 }
@@ -77,6 +84,19 @@ export interface SaveComposeParams {
   protocolId: string;
   bodyText: string | null;
   ctas: CtaInput[];
+  /**
+   * The protocol's chosen send time as an ISO-8601 string (whatever
+   * `Date`'s constructor accepts — the client sends the UTC instant it
+   * computed from the picked local time/zone), or null for "send as soon as
+   * payment clears" (the only behaviour that existed before scheduled
+   * sending — see SPEC's scheduled-sending addendum). Parsed/validated here,
+   * same as a CTA's target URL, rather than trusting the client's own
+   * parsing. Read again at payment-verification time (watchPayments.ts) to
+   * decide SENDING vs SCHEDULED; editable directly while SCHEDULED via
+   * rescheduleCampaign.ts, without this function or its
+   * DRAFT/REJECTED-only editability gate being involved again.
+   */
+  scheduledSendAt: string | null;
 }
 
 /**
@@ -95,6 +115,24 @@ function assertValidTargetUrl(raw: string): void {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new InvalidCtaError(`"${raw}" must be an http(s) URL.`);
   }
+}
+
+/**
+ * null means "send as soon as payment clears" — always valid. A non-null
+ * value must parse to a real instant; how far in the future (or whether
+ * it's already in the past by the time this saves) is deliberately not
+ * policed here — an arbitrary amount of real time can pass between compose
+ * and payment clearing anyway (moderation, then the payment window itself),
+ * so a "must be in the future" check here would only ever be checking the
+ * wrong moment. The one behaviour that matters — what happens if it's
+ * already past by the time payment verifies — is handled once, at
+ * verification (watchPayments.ts), not here.
+ */
+function parseScheduledSendAt(raw: string | null): Date | null {
+  if (raw === null) return null;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) throw new InvalidScheduledSendAtError(raw);
+  return parsed;
 }
 
 /**
@@ -131,6 +169,8 @@ export async function saveCampaignCompose(port: ComposePort, params: SaveCompose
 
   if (params.ctas.length > MAX_CTAS_PER_CAMPAIGN) throw new TooManyCtasError();
 
+  const scheduledSendAt = parseScheduledSendAt(params.scheduledSendAt);
+
   for (const cta of params.ctas) {
     if (cta.label.trim().length === 0) throw new InvalidCtaError("Every CTA needs a label.");
     if (cta.label.length > CTA_LABEL_MAX_LENGTH) {
@@ -149,6 +189,7 @@ export async function saveCampaignCompose(port: ComposePort, params: SaveCompose
     campaignId: params.campaignId,
     bodyText: params.bodyText,
     ctas,
+    scheduledSendAt,
   });
 
   return { ctas };

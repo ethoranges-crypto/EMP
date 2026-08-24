@@ -15,9 +15,17 @@ import { maybeCompleteCampaign } from "../campaignCompletion.js";
  * same source the Pay panel's API reads, so there's no separate copy that
  * can drift), check that chain's AWAITING payments against on-chain
  * activity (EvmTreasuryWatcher — SPEC §6 MVP verification). A VERIFIED
- * payment is the only thing allowed to move a campaign into SENDING
- * (CLAUDE.md rule 2: payment gates send). Fully automated — no manual admin
- * verification step.
+ * payment is the only thing allowed to move a campaign past AWAITING_PAYMENT
+ * (CLAUDE.md rule 2: payment gates send) — either straight to SENDING, or to
+ * SCHEDULED if the protocol chose a future send time (scheduled sending).
+ * Fully automated — no manual admin verification step.
+ *
+ * The same tick also scans for SCHEDULED campaigns whose time has arrived
+ * (fireDueScheduledCampaigns) — a plain DB query rather than a BullMQ
+ * delayed job, so it self-heals on a worker restart with no job-id
+ * bookkeeping: a scheduled send that was due while the worker was down just
+ * gets picked up by the next tick once it's back, same as a payment that
+ * cleared while the worker was offline already does.
  */
 export function createPaymentWatchWorker(): Worker {
   const sendQueue = createTelegramSendQueue();
@@ -67,6 +75,8 @@ export function createPaymentWatchWorker(): Worker {
           }
         }
       }
+
+      await fireDueScheduledCampaigns(sendQueue);
     },
     { connection: getRedisConnection() },
   );
@@ -78,11 +88,72 @@ async function sendCampaignOnPaymentVerified(
 ): Promise<void> {
   const campaign = await prisma.campaign.findUniqueOrThrow({
     where: { id: campaignId },
-    include: { recipients: true, ctas: true },
+    select: { scheduledSendAt: true },
   });
 
-  assertTransition("AWAITING_PAYMENT", "SENDING");
-  await prisma.campaign.update({ where: { id: campaignId }, data: { status: "SENDING" } });
+  // No schedule chosen, or the chosen time has already passed by the time
+  // payment cleared ("paid late") — both send right away, exactly the
+  // behaviour that existed before scheduled sending. Paid-late is
+  // deliberately NOT held or flagged for manual attention: SPEC's fully
+  // automated payment->send path has no admin-in-the-loop step anywhere
+  // else, and a protocol that's already paid has no way to "pay later" to
+  // fix a schedule that slipped — sending immediately is the only outcome
+  // that doesn't strand a paid campaign. The late case is still logged, so
+  // it's visible in the worker's own output if it ever needs investigating.
+  if (campaign.scheduledSendAt === null || campaign.scheduledSendAt.getTime() <= Date.now()) {
+    if (campaign.scheduledSendAt !== null) {
+      console.warn(
+        `[worker] Campaign ${campaignId} was scheduled to send at ${campaign.scheduledSendAt.toISOString()}, ` +
+          `but payment only cleared at ${new Date().toISOString()} — sending immediately instead of holding.`,
+      );
+    }
+    assertTransition("AWAITING_PAYMENT", "SENDING");
+    await prisma.campaign.update({ where: { id: campaignId }, data: { status: "SENDING" } });
+    await sendCampaignNow(sendQueue, campaignId);
+    return;
+  }
+
+  assertTransition("AWAITING_PAYMENT", "SCHEDULED");
+  await prisma.campaign.update({ where: { id: campaignId }, data: { status: "SCHEDULED" } });
+}
+
+/**
+ * Picks up every SCHEDULED campaign whose scheduledSendAt has arrived and
+ * fires it — see this file's top comment for why a periodic scan (not a
+ * BullMQ delayed job) is what survives a worker restart here. Reschedules
+ * and cancellations (rescheduleCampaign.ts) are plain updates to
+ * scheduledSendAt, so this query always sees the campaign's current
+ * intended send time with no separate job to keep in sync.
+ */
+async function fireDueScheduledCampaigns(sendQueue: ReturnType<typeof createTelegramSendQueue>): Promise<void> {
+  const due = await prisma.campaign.findMany({
+    where: { status: "SCHEDULED", scheduledSendAt: { lte: new Date() } },
+    select: { id: true },
+  });
+
+  for (const campaign of due) {
+    try {
+      assertTransition("SCHEDULED", "SENDING");
+      await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "SENDING" } });
+      await sendCampaignNow(sendQueue, campaign.id);
+    } catch (err) {
+      console.error(`[worker] scheduled-send tick failed for campaign ${campaign.id}:`, err);
+    }
+  }
+}
+
+/**
+ * Builds and enqueues every recipient's send job for a campaign that's
+ * already been moved to SENDING by the caller (sendCampaignOnPaymentVerified
+ * for an immediate/paid-late send, fireDueScheduledCampaigns for one whose
+ * scheduled time arrived) — the two callers differ only in *when* they
+ * decide to send, not in how the actual send is built.
+ */
+async function sendCampaignNow(sendQueue: ReturnType<typeof createTelegramSendQueue>, campaignId: string): Promise<void> {
+  const campaign = await prisma.campaign.findUniqueOrThrow({
+    where: { id: campaignId },
+    include: { recipients: true, ctas: true },
+  });
 
   const env = loadEnv();
   const ctas = campaign.ctas.map((cta) => ({

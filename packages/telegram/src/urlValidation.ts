@@ -57,3 +57,54 @@ export function isLikelyDevTunnelUrl(url: string): boolean {
   }
   return DEV_TUNNEL_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
 }
+
+export type RedirectBaseUrlReachability = { reachable: true } | { reachable: false; reason: string };
+
+/**
+ * isTelegramCompatibleUrl only checks *shape* (https, not localhost) — a
+ * syntactically fine REDIRECT_BASE_URL still fails hard at click time if
+ * the domain was never actually purchased/pointed at anything (real-world
+ * case this exists for: a "branded" domain set in .env before it's live —
+ * DNS_PROBE_FINISHED_NXDOMAIN in the recipient's browser, discovered only
+ * when someone taps the button). This makes an actual network request —
+ * DNS resolution, TCP connect, and (for https) the TLS handshake all have
+ * to succeed — so a dead domain is caught here, at startup, instead of by
+ * a recipient's browser. Any HTTP response at all counts as reachable,
+ * even a 404: the point is proving the domain resolves and answers, not
+ * that this exact path is meaningful.
+ */
+export async function checkRedirectBaseUrlReachable(url: string, timeoutMs = 5000): Promise<RedirectBaseUrlReachability> {
+  let origin: string;
+  let hostname: string;
+  try {
+    const parsed = new URL(url);
+    origin = parsed.origin;
+    hostname = parsed.hostname;
+  } catch {
+    return { reachable: false, reason: `"${url}" isn't a valid URL.` };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    await fetch(origin, { method: "HEAD", signal: controller.signal });
+    return { reachable: true };
+  } catch (err) {
+    if (controller.signal.aborted) {
+      return { reachable: false, reason: `Timed out after ${timeoutMs}ms connecting to ${hostname}.` };
+    }
+    const code = (err as { cause?: { code?: string } })?.cause?.code;
+    if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+      return { reachable: false, reason: `"${hostname}" doesn't resolve (DNS lookup failed, ${code}) — is this domain actually registered and live?` };
+    }
+    if (code === "ECONNREFUSED") {
+      return { reachable: false, reason: `Connection to "${hostname}" was refused — nothing is listening there.` };
+    }
+    if (code) {
+      return { reachable: false, reason: `Could not reach "${hostname}": ${code}.` };
+    }
+    return { reachable: false, reason: err instanceof Error ? err.message : String(err) };
+  } finally {
+    clearTimeout(timeout);
+  }
+}

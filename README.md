@@ -292,6 +292,39 @@ If you don't need to see real Telegram messages land — just want to confirm a 
 `SENDING` and delivery counts tick up — there's no simpler local option than the tunnel for anything
 with CTAs; skipping CTAs entirely (an empty `ctas` array at compose) is the only way to avoid it.
 
+**`REDIRECT_BASE_URL` is a deploy-time value, never hardcoded** — it's read fresh from env in every
+environment (`getEnv().REDIRECT_BASE_URL`, see `packages/config/src/env.ts`), so "which domain" is
+purely a config choice, not a code change:
+
+| Environment | `REDIRECT_BASE_URL` |
+| --- | --- |
+| Local dev, no CTAs | `http://localhost:3000/r` (default) — fine, nothing sends via Telegram |
+| Local dev, testing real Telegram sends | your tunnel's printed URL (step 3 above) |
+| Production | your own purchased, DNS-configured domain |
+
+A "branded" domain (e.g. `emp.link`) typed into `.env` before it's actually purchased and pointed at
+anything is syntactically valid HTTPS and will pass Telegram's own rule fine — then fail as
+`DNS_PROBE_FINISHED_NXDOMAIN` the moment a real recipient's browser tries to resolve it, discovered
+only when someone taps a CTA. `apps/worker` now makes an actual network request to
+`REDIRECT_BASE_URL` at startup (`checkRedirectBaseUrlReachable`, `@emp/telegram`) — DNS resolution,
+TCP connect, and the TLS handshake all have to succeed — and warns immediately if it doesn't, instead
+of leaving that to be discovered at click time. It also separately warns if the domain resolves but
+looks like a temporary dev tunnel (`isLikelyDevTunnelUrl`) — reachable, but not something to actually
+send to real users (see the CTA-link-trust discussion — a random tunnel subdomain is itself an
+unfamiliar-link problem, even once it works).
+
+**Going to production with a real branded domain is a one-time setup step**, separate from local
+testing and independent of any code change:
+
+1. Buy the domain (e.g. `emp.link`).
+2. Point its DNS at wherever `apps/web` is actually deployed (an A/CNAME record to your hosting
+   provider — the exact record depends on where you deploy, same as pointing any custom domain at a
+   Next.js app).
+3. Set `REDIRECT_BASE_URL=https://emp.link/r` in that environment's `.env`/secret store.
+4. Restart `apps/worker` and confirm its startup log shows no `REDIRECT_BASE_URL` warning at all —
+   that's the same reachability check above confirming the real domain is live before you send
+   anything to real users.
+
 ### Known gap — flagged, not yet closed
 
 **Telegram code redemption has still only been exercised via substitution, never a live Telegram

@@ -1,5 +1,5 @@
 import { getChains, getPayableChains, loadEnv, loadRootEnvFile } from "@emp/config";
-import { isLikelyDevTunnelUrl, isTelegramCompatibleUrl } from "@emp/telegram";
+import { checkRedirectBaseUrlReachable, isLikelyDevTunnelUrl, isTelegramCompatibleUrl } from "@emp/telegram";
 import { createPaymentWatchQueue, schedulePaymentWatchTick } from "./queues/paymentWatchQueue.js";
 import { createPaymentWatchWorker } from "./processors/watchPayments.js";
 import { createTelegramSendWorker } from "./processors/sendMessage.js";
@@ -55,18 +55,35 @@ if (!isTelegramCompatibleUrl(`${env.REDIRECT_BASE_URL}/sample-token`)) {
       "fail for every recipient until this points at a real HTTPS host (a public tunnel like ngrok/cloudflared " +
       "works for local testing — see the README).",
   );
-} else if (isLikelyDevTunnelUrl(env.REDIRECT_BASE_URL)) {
-  // A separate, softer nudge from the check above: this URL *works* (it's
-  // valid HTTPS), but a randomized ngrok/cloudflared-style subdomain reads
-  // as exactly the kind of unfamiliar link a wary recipient is right to
-  // distrust (see the CTA-link-trust discussion this fix came out of).
-  // Fine for local testing; swap in a real branded domain before sending
-  // to real users.
-  console.warn(
-    `[worker] REDIRECT_BASE_URL ("${env.REDIRECT_BASE_URL}") looks like a temporary dev tunnel — fine for local ` +
-      "testing, but recipients will see this domain on every CTA button. Point it at a real, stable domain you " +
-      "control before sending to real users.",
-  );
+} else {
+  // Syntactically fine (real HTTPS host, not localhost) doesn't mean the
+  // domain actually exists — a "branded" domain typed into .env before
+  // it's purchased/pointed at anything passes the check above and then
+  // fails as DNS_PROBE_FINISHED_NXDOMAIN in a recipient's browser the
+  // first time someone taps a CTA. Make an actual network request here so
+  // that failure shows up now, in a log, instead of then.
+  const reachability = await checkRedirectBaseUrlReachable(env.REDIRECT_BASE_URL);
+  if (!reachability.reachable) {
+    console.warn(
+      `[worker] REDIRECT_BASE_URL ("${env.REDIRECT_BASE_URL}") looks like a valid HTTPS URL but isn't actually ` +
+        `reachable: ${reachability.reason} Campaigns with no CTAs still send fine; anything with a CTA will ` +
+        "hit DNS_PROBE_FINISHED_NXDOMAIN (or similar) in the recipient's browser until this points at a domain " +
+        "that's actually live — a public tunnel (ngrok/cloudflared) for local testing, or your real branded " +
+        "domain once it's purchased and DNS is pointed at it in production. See the README.",
+    );
+  } else if (isLikelyDevTunnelUrl(env.REDIRECT_BASE_URL)) {
+    // A separate, softer nudge: this URL *works* (real HTTPS, actually
+    // reachable), but a randomized ngrok/cloudflared-style subdomain reads
+    // as exactly the kind of unfamiliar link a wary recipient is right to
+    // distrust (see the CTA-link-trust discussion this fix came out of).
+    // Fine for local testing; swap in a real branded domain before sending
+    // to real users.
+    console.warn(
+      `[worker] REDIRECT_BASE_URL ("${env.REDIRECT_BASE_URL}") looks like a temporary dev tunnel — fine for local ` +
+        "testing, but recipients will see this domain on every CTA button. Point it at a real, stable domain you " +
+        "control before sending to real users.",
+    );
+  }
 }
 
 for (const worker of [sendWorker, paymentWatchWorker]) {

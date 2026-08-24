@@ -31,3 +31,8 @@ export function formatScheduledSendAt(iso: string): string {
   });
   return `${formatted} (${localTimeZoneName()})`;
 }
+
+/** Human-readable local time for a historical record (created/approved/sent) — no tz suffix needed since it's a fact about the past, not something to act on. */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAudienceCount, getCampaignMetrics, type ProtocolQueryPort } from "./index.js";
+import { getAudienceCount, getCampaignMetrics, getProtocolSummary, type ProtocolQueryPort } from "./index.js";
 import { assertNoForbiddenKeys } from "../testUtils/privacyAssertions.js";
 
 function createFakePort(overrides: Partial<ProtocolQueryPort> = {}): ProtocolQueryPort {
@@ -12,6 +12,7 @@ function createFakePort(overrides: Partial<ProtocolQueryPort> = {}): ProtocolQue
       { ctaId: "cta-1", label: "Claim yield", count: 30 },
       { ctaId: "cta-2", label: "Learn more", count: 12 },
     ],
+    getProtocolSummaryCounts: async () => ({ campaignsSent: 4, totalReach: 800, totalClicks: 120 }),
     ...overrides,
   };
 }
@@ -58,5 +59,25 @@ describe("privacy boundary — protocol-facing query layer", () => {
     const port = createFakePort({ getCampaignCost: async () => null });
     const metrics = await getCampaignMetrics(port, "campaign-1");
     expect(metrics.spend).toBeNull();
+  });
+
+  it("getProtocolSummary response contains no wallet/chat_id/address-shaped keys at any depth", async () => {
+    const port = createFakePort();
+    const summary = await getProtocolSummary(port, "protocol-1");
+    assertNoForbiddenKeys(summary);
+  });
+
+  it("getProtocolSummary computes an aggregate click rate from aggregate totals, not an average of per-campaign rates", async () => {
+    const port = createFakePort();
+    const summary = await getProtocolSummary(port, "protocol-1");
+    expect(summary).toEqual({ campaignsSent: 4, totalReach: 800, avgClickRatePct: 15 }); // 120 / 800
+  });
+
+  it("handles a protocol with no COMPLETE campaigns yet without dividing by zero", async () => {
+    const port = createFakePort({
+      getProtocolSummaryCounts: async () => ({ campaignsSent: 0, totalReach: 0, totalClicks: 0 }),
+    });
+    const summary = await getProtocolSummary(port, "protocol-1");
+    expect(summary).toEqual({ campaignsSent: 0, totalReach: 0, avgClickRatePct: 0 });
   });
 });

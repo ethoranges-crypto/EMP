@@ -63,6 +63,8 @@ export interface ProtocolCampaign {
    * before it's even submitted.
    */
   scheduledSendAt: string | null;
+  /** The actual moment this campaign entered SENDING (immediate, paid-late, or a scheduled time firing) — null until it has. */
+  sentAt: string | null;
   /** Non-null only once status is COMPLETE. */
   metrics: ProtocolCampaignMetrics | null;
 }
@@ -118,7 +120,36 @@ export interface CampaignDetail {
   /** The admin's reason, present only while status is currently REJECTED. */
   rejectionReason: string | null;
   createdAt: string;
+  /** Set once, at IN_REVIEW -> APPROVED — null before that (DRAFT/IN_REVIEW/REJECTED-never-approved). */
+  approvedAt: string | null;
   /** See ProtocolCampaign.scheduledSendAt — same field, same meaning. */
   scheduledSendAt: string | null;
+  /** See ProtocolCampaign.sentAt — same field, same meaning. */
+  sentAt: string | null;
   payment: CampaignPaymentInfo | null;
+}
+
+/**
+ * GET /api/protocol/campaigns/[id]/metrics's full response shape — the
+ * dashboard detail view's "Results" section. Every field is a count or a
+ * rate (CLAUDE.md rule 1); byCta breaks the click total down per button
+ * without ever naming which user clicked which.
+ */
+export interface CampaignFullMetrics {
+  campaignId: string;
+  audienceSize: number;
+  delivered: { count: number; ratePct: number };
+  clicks: {
+    total: number;
+    ratePct: number;
+    byCta: Array<{ ctaId: string; label: string; count: number; ratePct: number }>;
+  };
+  spend: { token: string; amount: string } | null;
+}
+
+/** GET /api/protocol/dashboard/summary's response shape — the dashboard's aggregate strip. */
+export interface ProtocolSummary {
+  campaignsSent: number;
+  totalReach: number;
+  avgClickRatePct: number;
 }

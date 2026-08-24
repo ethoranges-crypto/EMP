@@ -19,6 +19,12 @@ function ratePct(numerator: number, denominator: number): number {
   return Math.round((numerator / denominator) * 10000) / 100;
 }
 
+export interface ProtocolSummary {
+  campaignsSent: number;
+  totalReach: number;
+  avgClickRatePct: number;
+}
+
 /**
  * The only function protocol-facing "audience size" UI/API may call.
  * CLAUDE.md rule 1 + SPEC §4.3 step 1: this is the *only* audience data a
@@ -66,4 +72,16 @@ export async function getCampaignMetrics(
     },
     spend: cost,
   };
+}
+
+/**
+ * The dashboard's aggregate summary strip (nice-to-have per the dashboard
+ * spec, cheap here since it's a couple of scoped aggregate queries) — total
+ * campaigns sent, total reach, and an average click rate computed from
+ * aggregate totals (never an average of per-campaign rates, which would
+ * over-weight a small campaign against a large one).
+ */
+export async function getProtocolSummary(port: ProtocolQueryPort, protocolId: string): Promise<ProtocolSummary> {
+  const { campaignsSent, totalReach, totalClicks } = await port.getProtocolSummaryCounts(protocolId);
+  return { campaignsSent, totalReach, avgClickRatePct: ratePct(totalClicks, totalReach) };
 }

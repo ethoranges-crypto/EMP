@@ -15,6 +15,15 @@ export interface ProtocolQueryPort {
   getCtaClickCounts(
     campaignId: string,
   ): Promise<Array<{ ctaId: string; label: string; count: number }>>;
+  /**
+   * Raw counts behind the dashboard's aggregate summary strip — scoped to
+   * COMPLETE campaigns owned by this protocol, nothing else. Rate math
+   * happens in getProtocolSummary (index.ts), not here, same split as every
+   * other method on this port.
+   */
+  getProtocolSummaryCounts(
+    protocolId: string,
+  ): Promise<{ campaignsSent: number; totalReach: number; totalClicks: number }>;
 }
 
 export interface CategoryFilter {

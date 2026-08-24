@@ -52,7 +52,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         snapshotCount: true,
         costAmount: true,
         createdAt: true,
+        approvedAt: true,
         scheduledSendAt: true,
+        sentAt: true,
         categories: { select: { category: { select: { name: true } } } },
         ctas: { select: { id: true, label: true, targetUrl: true } },
         // Same "only the latest review matters" reasoning as the campaigns list GET.
@@ -98,7 +100,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       costAmount: campaign.costAmount?.toString() ?? null,
       rejectionReason: campaign.status === "REJECTED" ? (campaign.moderationReviews[0]?.reason ?? null) : null,
       createdAt: campaign.createdAt,
+      approvedAt: campaign.approvedAt,
       scheduledSendAt: campaign.scheduledSendAt,
+      sentAt: campaign.sentAt,
       payment: latestPayment
         ? {
             chain: latestPayment.chain,

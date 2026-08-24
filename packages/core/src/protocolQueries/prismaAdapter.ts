@@ -58,5 +58,27 @@ export function createPrismaProtocolQueryStore(prisma: PrismaClient): ProtocolQu
       });
       return ctas.map((cta) => ({ ctaId: cta.id, label: cta.label, count: cta._count.clickEvents }));
     },
+
+    async getProtocolSummaryCounts(protocolId) {
+      const completeCampaigns = await prisma.campaign.findMany({
+        where: { protocolId, status: "COMPLETE" },
+        select: { id: true },
+      });
+      const campaignIds = completeCampaigns.map((c) => c.id);
+      if (campaignIds.length === 0) return { campaignsSent: 0, totalReach: 0, totalClicks: 0 };
+
+      const [deliveredAgg, totalClicks] = await Promise.all([
+        prisma.deliveryEvent.aggregate({
+          where: { campaignId: { in: campaignIds }, status: "SENT" },
+          _sum: { count: true },
+        }),
+        // ClickEvent carries no user identity (id, ctaId, campaignId, occurredAt
+        // only — see schema.prisma) — a count over it is aggregate-safe by
+        // construction, same as every other method on this adapter.
+        prisma.clickEvent.count({ where: { campaignId: { in: campaignIds } } }),
+      ]);
+
+      return { campaignsSent: campaignIds.length, totalReach: deliveredAgg._sum.count ?? 0, totalClicks };
+    },
   };
 }

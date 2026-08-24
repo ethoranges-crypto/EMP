@@ -100,6 +100,7 @@ export async function GET() {
           rejectionReason: c.status === "REJECTED" ? (c.moderationReviews[0]?.reason ?? null) : null,
           createdAt: c.createdAt,
           scheduledSendAt: c.scheduledSendAt,
+          sentAt: c.sentAt,
           metrics: metrics
             ? {
                 delivered: metrics.delivered,

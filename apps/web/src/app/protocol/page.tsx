@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { SignInPanel } from "./SignInPanel";
@@ -137,6 +138,12 @@ export default function ProtocolJourneyPage() {
                   setComposingCampaignId(campaignId);
                 }}
               />
+              <Link
+                href="/protocol/dashboard"
+                className="self-center text-xs text-slate-500 underline underline-offset-4 hover:text-slate-300"
+              >
+                View campaign history &amp; analytics →
+              </Link>
               <CampaignsPanel
                 campaigns={campaigns}
                 justUpdated={justUpdated}

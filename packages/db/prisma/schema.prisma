@@ -240,6 +240,11 @@ model Campaign {
   /// payment-verification (watchPayments.ts), and editable directly while
   /// the campaign is SCHEDULED (rescheduleCampaign.ts). Always UTC.
   scheduledSendAt DateTime?
+  /// Set the moment this campaign actually enters SENDING (immediate,
+  /// paid-late, or a scheduled time firing — see watchPayments.ts) — the
+  /// dashboard's "actual send time", distinct from scheduledSendAt (the
+  /// protocol's intent). Null for anything that hasn't sent yet.
+  sentAt          DateTime?
 
   protocol          Protocol            @relation(fields: [protocolId], references: [id])
   categories         CampaignCategory[]

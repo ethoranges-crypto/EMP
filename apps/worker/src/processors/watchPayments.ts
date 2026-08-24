@@ -108,7 +108,7 @@ async function sendCampaignOnPaymentVerified(
       );
     }
     assertTransition("AWAITING_PAYMENT", "SENDING");
-    await prisma.campaign.update({ where: { id: campaignId }, data: { status: "SENDING" } });
+    await prisma.campaign.update({ where: { id: campaignId }, data: { status: "SENDING", sentAt: new Date() } });
     await sendCampaignNow(sendQueue, campaignId);
     return;
   }
@@ -134,7 +134,7 @@ async function fireDueScheduledCampaigns(sendQueue: ReturnType<typeof createTele
   for (const campaign of due) {
     try {
       assertTransition("SCHEDULED", "SENDING");
-      await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "SENDING" } });
+      await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "SENDING", sentAt: new Date() } });
       await sendCampaignNow(sendQueue, campaign.id);
     } catch (err) {
       console.error(`[worker] scheduled-send tick failed for campaign ${campaign.id}:`, err);

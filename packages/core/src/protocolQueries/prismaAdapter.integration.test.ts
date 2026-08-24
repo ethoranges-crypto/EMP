@@ -47,11 +47,14 @@ const METHOD_COVERAGE: MethodCoverage = {
   getCampaignCost: true,
   getDeliveryCounts: true,
   getCtaClickCounts: true,
+  getProtocolSummaryCounts: true,
 };
 
 describe("prismaAdapter — protocol-facing privacy boundary (integration, real Postgres)", () => {
   let campaignId: string;
   let categoryId: string;
+  let protocolId: string;
+  let completeCampaignId: string;
 
   beforeAll(async () => {
     // Fresh slate: this suite owns these tables in the integration DB.
@@ -88,6 +91,7 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
     const protocol = await prisma.protocol.create({
       data: { wallet: "0xprotocol000000000000000000000000000000", name: "Test Protocol", status: "APPROVED" },
     });
+    protocolId = protocol.id;
 
     const campaign = await prisma.campaign.create({
       data: {
@@ -126,6 +130,34 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
         windowExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
         verifiedAt: new Date(),
       },
+    });
+
+    // A second, COMPLETE campaign for the same protocol — getProtocolSummaryCounts
+    // scopes to COMPLETE only, so the SENDING campaign above must not be
+    // counted in it (proven by the exact totals asserted below).
+    const completeCampaign = await prisma.campaign.create({
+      data: {
+        protocolId,
+        title: "Completed Campaign",
+        status: "COMPLETE",
+        chain: "ETHEREUM",
+        token: "USDC",
+        snapshotCount: 10,
+        costAmount: "50.00",
+        approvedAt: new Date(),
+        sentAt: new Date(),
+      },
+    });
+    completeCampaignId = completeCampaign.id;
+    await prisma.deliveryEvent.create({ data: { campaignId: completeCampaignId, status: "SENT", count: 8 } });
+    const completeCta = await prisma.cta.create({
+      data: { campaignId: completeCampaignId, label: "Claim", targetUrl: "https://example.com", redirectToken: "tok-integration-2" },
+    });
+    await prisma.clickEvent.createMany({
+      data: [
+        { ctaId: completeCta.id, campaignId: completeCampaignId },
+        { ctaId: completeCta.id, campaignId: completeCampaignId },
+      ],
     });
   });
 
@@ -197,6 +229,23 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
     assertClean(result, "getCtaClickCounts");
   });
 
+  it("getProtocolSummaryCounts: clean and correct — counts only the COMPLETE campaign, not the SENDING one", async () => {
+    const store = createPrismaProtocolQueryStore(prisma);
+    const result = await store.getProtocolSummaryCounts(protocolId);
+    expect(result).toEqual({ campaignsSent: 1, totalReach: 8, totalClicks: 2 });
+    assertClean(result, "getProtocolSummaryCounts");
+  });
+
+  it("getProtocolSummaryCounts: a protocol with no COMPLETE campaigns gets zeros, not another protocol's totals", async () => {
+    const otherProtocol = await prisma.protocol.create({
+      data: { wallet: "0xotherprotocol0000000000000000000000000", name: "Other Protocol", status: "APPROVED" },
+    });
+    const store = createPrismaProtocolQueryStore(prisma);
+    const result = await store.getProtocolSummaryCounts(otherProtocol.id);
+    expect(result).toEqual({ campaignsSent: 0, totalReach: 0, totalClicks: 0 });
+    assertClean(result, "getProtocolSummaryCounts");
+  });
+
   it("covers every ProtocolQueryPort method — see METHOD_COVERAGE's doc comment", () => {
     expect(Object.keys(METHOD_COVERAGE).sort()).toEqual(
       [
@@ -205,6 +254,7 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
         "getCampaignSnapshotCount",
         "getCtaClickCounts",
         "getDeliveryCounts",
+        "getProtocolSummaryCounts",
       ].sort(),
     );
   });

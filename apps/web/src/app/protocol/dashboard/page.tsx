@@ -82,22 +82,24 @@ export default function ProtocolDashboardPage() {
       .then((r) => r.json())
       .then((data: { categories: Category[] }) => {
         const everything = data.categories.find((c) => c.name === EVERYTHING_CATEGORY_NAME);
-        if (!everything) return;
+        if (!everything) return null;
         return fetch("/api/protocol/audience-count", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ categoryIds: [everything.id] }),
-        });
+        }).then((res) => (res.ok ? res.json() : null));
       })
-      .then((res) => res?.json())
-      .then((data?: { audienceCount: number }) => {
-        if (data) setMessageableCount(data.audienceCount);
+      .then((data?: { audienceCount: number } | null) => {
+        if (data && typeof data.audienceCount === "number") setMessageableCount(data.audienceCount);
       })
       .catch(() => setMessageableCount(null));
 
     fetch("/api/protocol/pricing")
-      .then((r) => r.json())
-      .then((data: { flatCostPerUser: string | null }) => setFlatCostPerUser(data.flatCostPerUser !== null ? Number(data.flatCostPerUser) : null))
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data?: { flatCostPerUser: string | null } | null) => {
+        if (!data) return;
+        setFlatCostPerUser(data.flatCostPerUser !== null ? Number(data.flatCostPerUser) : null);
+      })
       .catch(() => setFlatCostPerUser(null));
   }, [meStatus]);
 

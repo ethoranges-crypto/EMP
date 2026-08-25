@@ -69,11 +69,11 @@ export function LiveRail({
         <div className="font-mono text-[9.5px] font-medium tracking-[.12em] text-ink-5">NETWORK RIGHT NOW</div>
         <div className="flex justify-between text-[12.5px]">
           <span className="text-ink-4">Messageable users</span>
-          <span className="font-mono">{messageableCount !== null ? messageableCount.toLocaleString() : "—"}</span>
+          <span className="font-mono">{typeof messageableCount === "number" ? messageableCount.toLocaleString() : "—"}</span>
         </div>
         <div className="flex justify-between text-[12.5px]">
           <span className="text-ink-4">Cost per user</span>
-          <span className="font-mono">{flatCostPerUser !== null ? `$${flatCostPerUser.toFixed(2)}` : "—"}</span>
+          <span className="font-mono">{typeof flatCostPerUser === "number" ? `$${flatCostPerUser.toFixed(2)}` : "—"}</span>
         </div>
         <div className="flex justify-between text-[12.5px]">
           <span className="text-ink-4">Accepted tokens</span>

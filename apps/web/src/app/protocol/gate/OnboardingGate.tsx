@@ -89,28 +89,38 @@ export function OnboardingGate({
   const [messageableCount, setMessageableCount] = useState<number | null>(null);
   const [flatCostPerUser, setFlatCostPerUser] = useState<number | null>(null);
 
+  // audience-count 403s for any protocol that isn't APPROVED — which, since
+  // this component only ever renders pre-approval (see stageFor), is every
+  // protocol that reaches this effect. The response is still `{error}`, not
+  // `{audienceCount}`, so both fetches below check the shape of what came
+  // back before trusting it — an error body must never be mistaken for a
+  // real (if merely absent) audienceCount/flatCostPerUser value, which is
+  // exactly what previously slipped an `undefined` past LiveRail's `!==
+  // null` guard and crashed it.
   useEffect(() => {
     if (meStatus !== "signed-in") return;
     fetch("/api/protocol/categories")
       .then((r) => r.json())
       .then((data: { categories: Category[] }) => {
         const everything = data.categories.find((c) => c.name === EVERYTHING_CATEGORY_NAME);
-        if (!everything) return;
+        if (!everything) return null;
         return fetch("/api/protocol/audience-count", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ categoryIds: [everything.id] }),
-        });
+        }).then((res) => (res.ok ? res.json() : null));
       })
-      .then((res) => res?.json())
-      .then((data?: { audienceCount: number }) => {
-        if (data) setMessageableCount(data.audienceCount);
+      .then((data?: { audienceCount: number } | null) => {
+        if (data && typeof data.audienceCount === "number") setMessageableCount(data.audienceCount);
       })
       .catch(() => setMessageableCount(null));
 
     fetch("/api/protocol/pricing")
-      .then((r) => r.json())
-      .then((data: { flatCostPerUser: string | null }) => setFlatCostPerUser(data.flatCostPerUser !== null ? Number(data.flatCostPerUser) : null))
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data?: { flatCostPerUser: string | null } | null) => {
+        if (!data) return;
+        setFlatCostPerUser(data.flatCostPerUser !== null ? Number(data.flatCostPerUser) : null);
+      })
       .catch(() => setFlatCostPerUser(null));
   }, [meStatus]);
 

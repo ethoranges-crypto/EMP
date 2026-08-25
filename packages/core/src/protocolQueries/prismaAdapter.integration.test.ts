@@ -232,7 +232,7 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
   it("getProtocolSummaryCounts: clean and correct — counts only the COMPLETE campaign, not the SENDING one", async () => {
     const store = createPrismaProtocolQueryStore(prisma);
     const result = await store.getProtocolSummaryCounts(protocolId);
-    expect(result).toEqual({ campaignsSent: 1, totalReach: 8, totalClicks: 2 });
+    expect(result).toEqual({ campaignsSent: 1, totalReach: 8, totalAudience: 10, totalClicks: 2 });
     assertClean(result, "getProtocolSummaryCounts");
   });
 
@@ -242,7 +242,7 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
     });
     const store = createPrismaProtocolQueryStore(prisma);
     const result = await store.getProtocolSummaryCounts(otherProtocol.id);
-    expect(result).toEqual({ campaignsSent: 0, totalReach: 0, totalClicks: 0 });
+    expect(result).toEqual({ campaignsSent: 0, totalReach: 0, totalAudience: 0, totalClicks: 0 });
     assertClean(result, "getProtocolSummaryCounts");
   });
 

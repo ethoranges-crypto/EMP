@@ -23,7 +23,7 @@ export interface ProtocolQueryPort {
    */
   getProtocolSummaryCounts(
     protocolId: string,
-  ): Promise<{ campaignsSent: number; totalReach: number; totalClicks: number }>;
+  ): Promise<{ campaignsSent: number; totalReach: number; totalAudience: number; totalClicks: number }>;
 }
 
 export interface CategoryFilter {

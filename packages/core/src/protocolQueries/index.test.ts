@@ -12,7 +12,7 @@ function createFakePort(overrides: Partial<ProtocolQueryPort> = {}): ProtocolQue
       { ctaId: "cta-1", label: "Claim yield", count: 30 },
       { ctaId: "cta-2", label: "Learn more", count: 12 },
     ],
-    getProtocolSummaryCounts: async () => ({ campaignsSent: 4, totalReach: 800, totalClicks: 120 }),
+    getProtocolSummaryCounts: async () => ({ campaignsSent: 4, totalReach: 800, totalAudience: 1000, totalClicks: 120 }),
     ...overrides,
   };
 }
@@ -67,17 +67,17 @@ describe("privacy boundary — protocol-facing query layer", () => {
     assertNoForbiddenKeys(summary);
   });
 
-  it("getProtocolSummary computes an aggregate click rate from aggregate totals, not an average of per-campaign rates", async () => {
+  it("getProtocolSummary computes aggregate delivered/click rates from aggregate totals, not an average of per-campaign rates", async () => {
     const port = createFakePort();
     const summary = await getProtocolSummary(port, "protocol-1");
-    expect(summary).toEqual({ campaignsSent: 4, totalReach: 800, avgClickRatePct: 15 }); // 120 / 800
+    expect(summary).toEqual({ campaignsSent: 4, totalReach: 800, avgDeliveredRatePct: 80, avgClickRatePct: 15 }); // 800/1000, 120/800
   });
 
   it("handles a protocol with no COMPLETE campaigns yet without dividing by zero", async () => {
     const port = createFakePort({
-      getProtocolSummaryCounts: async () => ({ campaignsSent: 0, totalReach: 0, totalClicks: 0 }),
+      getProtocolSummaryCounts: async () => ({ campaignsSent: 0, totalReach: 0, totalAudience: 0, totalClicks: 0 }),
     });
     const summary = await getProtocolSummary(port, "protocol-1");
-    expect(summary).toEqual({ campaignsSent: 0, totalReach: 0, avgClickRatePct: 0 });
+    expect(summary).toEqual({ campaignsSent: 0, totalReach: 0, avgDeliveredRatePct: 0, avgClickRatePct: 0 });
   });
 });

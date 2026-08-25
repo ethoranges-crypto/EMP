@@ -1,33 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { SummaryStrip } from "./SummaryStrip";
-import { CampaignHistoryList } from "./CampaignHistoryList";
+import { EVERYTHING_CATEGORY_NAME } from "@emp/config/categories";
+import { Header } from "./Header";
+import { NavRail, type HistoryFilter } from "./NavRail";
+import { StatCards } from "./StatCards";
+import { HistoryList } from "./HistoryList";
+import { LiveRail } from "./LiveRail";
 import { CampaignDetailView } from "./CampaignDetailView";
-import type { ProtocolCampaign, ProtocolMe, ProtocolSummary } from "../types";
+import { needsAction } from "./statusStyle";
+import type { Category, ProtocolCampaign, ProtocolMe, ProtocolSummary } from "../types";
 
 type MeStatus = "loading" | "ready" | "redirecting";
 
 /**
- * SPEC's dashboard requirement: the place a protocol reviews everything
- * it's run and how it performed — campaign history (any status) plus a
- * per-campaign detail view, with a cheap aggregate summary on top. A
- * separate route from /protocol (which is the "active work" flow — apply,
- * compose, pay) since this is a review destination, not a step in a flow.
- *
- * Guards the same way /protocol's own page does (fetch /api/protocol,
- * check status) rather than duplicating SIWE/wallet-connect UI here — an
- * unauthenticated or unapproved visitor is sent back to /protocol, which
- * already owns that flow.
+ * The protocol home, in the "1b" design language: left rail is navigation
+ * + filters, the middle column is the campaign history (any status), the
+ * right column is live truth — network state and the one thing needing
+ * action. A separate route from /protocol (the "active work" flow — apply,
+ * compose, pay) since this is a review destination, not a step in a flow;
+ * clicking a row opens the existing inline detail view below rather than
+ * navigating to a dedicated detail screen, since that screen (the design's
+ * "2d") hasn't been rebuilt in this visual language yet — see this file's
+ * git history for the plain-list version this replaced.
  */
 export default function ProtocolDashboardPage() {
   const router = useRouter();
   const [meStatus, setMeStatus] = useState<MeStatus>("loading");
+  const [me, setMe] = useState<ProtocolMe | null>(null);
   const [summary, setSummary] = useState<ProtocolSummary | null>(null);
   const [campaigns, setCampaigns] = useState<ProtocolCampaign[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<HistoryFilter>("ALL");
+  const [messageableCount, setMessageableCount] = useState<number | null>(null);
+  const [flatCostPerUser, setFlatCostPerUser] = useState<number | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     const [summaryRes, campaignsRes] = await Promise.all([
@@ -51,42 +58,106 @@ export default function ProtocolDashboardPage() {
         }
         return res.json() as Promise<ProtocolMe>;
       })
-      .then((me) => {
-        if (!me) return;
-        if (me.status !== "APPROVED") {
+      .then((data) => {
+        if (!data) return;
+        if (data.status !== "APPROVED") {
           setMeStatus("redirecting");
           router.replace("/protocol");
           return;
         }
+        setMe(data);
         setMeStatus("ready");
         void fetchDashboard();
       });
   }, [router, fetchDashboard]);
 
-  if (meStatus !== "ready") {
+  // Right rail's pulse circle: the *true* total messageable audience, not a
+  // category-filtered estimate — achieved by passing the "Everything"
+  // meta-category to the same audience-count endpoint compose already uses
+  // (includeAll semantics), rather than a new endpoint.
+  useEffect(() => {
+    if (meStatus !== "ready") return;
+    fetch("/api/protocol/categories")
+      .then((r) => r.json())
+      .then((data: { categories: Category[] }) => {
+        const everything = data.categories.find((c) => c.name === EVERYTHING_CATEGORY_NAME);
+        if (!everything) return;
+        return fetch("/api/protocol/audience-count", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ categoryIds: [everything.id] }),
+        });
+      })
+      .then((res) => res?.json())
+      .then((data?: { audienceCount: number }) => {
+        if (data) setMessageableCount(data.audienceCount);
+      })
+      .catch(() => setMessageableCount(null));
+
+    fetch("/api/protocol/pricing")
+      .then((r) => r.json())
+      .then((data: { flatCostPerUser: string | null }) => setFlatCostPerUser(data.flatCostPerUser !== null ? Number(data.flatCostPerUser) : null))
+      .catch(() => setFlatCostPerUser(null));
+  }, [meStatus]);
+
+  // Poll while anything is SENDING or SCHEDULED so the history/stat cards
+  // stay live without a manual refresh — same reasoning as /protocol's own
+  // polling effect.
+  useEffect(() => {
+    if (!campaigns.some((c) => c.status === "SENDING" || c.status === "SCHEDULED")) return;
+    const id = setInterval(() => void fetchDashboard(), 5000);
+    return () => clearInterval(id);
+  }, [campaigns, fetchDashboard]);
+
+  const needsActionCampaign = useMemo(() => campaigns.find((c) => needsAction(c.status)) ?? null, [campaigns]);
+
+  const bestCampaign = useMemo(() => {
+    let best: { title: string; ratePct: number } | null = null;
+    for (const c of campaigns) {
+      if (!c.metrics) continue;
+      if (!best || c.metrics.clicks.ratePct > best.ratePct) best = { title: c.title, ratePct: c.metrics.clicks.ratePct };
+    }
+    return best;
+  }, [campaigns]);
+
+  if (meStatus !== "ready" || !me) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-6 py-16">
-        <p className="text-sm text-slate-500">Loading…</p>
+      <main className="flex h-screen items-center justify-center bg-void">
+        <p className="text-sm text-ink-4">Loading…</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-16">
-      <header className="flex flex-col items-center gap-2 text-center">
-        <h1 className="bg-gradient-to-r from-pulse-violet to-pulse-cyan bg-clip-text text-3xl font-bold text-transparent">
-          Campaign history & analytics
-        </h1>
-        <Link href="/protocol" className="text-xs text-slate-500 underline underline-offset-4 hover:text-slate-300">
-          ← Back to campaigns
-        </Link>
-      </header>
+    <main className="flex h-screen flex-col overflow-hidden bg-void text-[13px] text-ink-1">
+      <Header me={me} />
+      <div className="grid min-h-0 flex-1 grid-cols-[210px_1fr_320px]">
+        <NavRail campaigns={campaigns} filter={filter} onFilterChange={setFilter} />
 
-      {summary && <SummaryStrip summary={summary} />}
+        <div className="flex min-h-0 min-w-0 flex-col gap-3.5 overflow-y-auto px-[26px] py-[22px]">
+          {summary && <StatCards summary={summary} bestCampaign={bestCampaign} />}
 
-      <CampaignHistoryList campaigns={campaigns} selectedId={selectedId} onSelect={setSelectedId} />
+          <div className="flex items-center gap-3">
+            <div className="font-mono text-[9.5px] font-medium tracking-[.14em] text-ink-5">HISTORY</div>
+            <div className="h-px flex-1 bg-white/[.08]" />
+            <div className="flex gap-3.5 font-mono text-[10.5px] text-ink-5">
+              <span className="text-pulse-cyan">● DELIVERED</span>
+              <span className="text-pulse-violet">● CLICKS</span>
+            </div>
+          </div>
 
-      {selectedId && <CampaignDetailView campaignId={selectedId} onClose={() => setSelectedId(null)} />}
+          <HistoryList campaigns={campaigns} filter={filter} onSelect={setSelectedId} />
+
+          {selectedId && <CampaignDetailView campaignId={selectedId} onClose={() => setSelectedId(null)} />}
+        </div>
+
+        <LiveRail
+          messageableCount={messageableCount}
+          flatCostPerUser={flatCostPerUser}
+          needsActionCampaign={needsActionCampaign}
+          bestCampaign={bestCampaign}
+        />
+      </div>
     </main>
   );
 }

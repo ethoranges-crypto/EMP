@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./telegramLimits": "./src/telegramLimits.ts",
     "./campaignLimits": "./src/campaignLimits.ts",
-    "./paymentTokens": "./src/paymentTokens.ts"
+    "./paymentTokens": "./src/paymentTokens.ts",
+    "./categories": "./src/categories.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

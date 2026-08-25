@@ -62,10 +62,12 @@ export function createPrismaProtocolQueryStore(prisma: PrismaClient): ProtocolQu
     async getProtocolSummaryCounts(protocolId) {
       const completeCampaigns = await prisma.campaign.findMany({
         where: { protocolId, status: "COMPLETE" },
-        select: { id: true },
+        select: { id: true, snapshotCount: true },
       });
       const campaignIds = completeCampaigns.map((c) => c.id);
-      if (campaignIds.length === 0) return { campaignsSent: 0, totalReach: 0, totalClicks: 0 };
+      if (campaignIds.length === 0) return { campaignsSent: 0, totalReach: 0, totalAudience: 0, totalClicks: 0 };
+
+      const totalAudience = completeCampaigns.reduce((sum, c) => sum + (c.snapshotCount ?? 0), 0);
 
       const [deliveredAgg, totalClicks] = await Promise.all([
         prisma.deliveryEvent.aggregate({
@@ -78,7 +80,7 @@ export function createPrismaProtocolQueryStore(prisma: PrismaClient): ProtocolQu
         prisma.clickEvent.count({ where: { campaignId: { in: campaignIds } } }),
       ]);
 
-      return { campaignsSent: campaignIds.length, totalReach: deliveredAgg._sum.count ?? 0, totalClicks };
+      return { campaignsSent: campaignIds.length, totalReach: deliveredAgg._sum.count ?? 0, totalAudience, totalClicks };
     },
   };
 }

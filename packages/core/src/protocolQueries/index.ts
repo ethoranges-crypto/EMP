@@ -22,6 +22,7 @@ function ratePct(numerator: number, denominator: number): number {
 export interface ProtocolSummary {
   campaignsSent: number;
   totalReach: number;
+  avgDeliveredRatePct: number;
   avgClickRatePct: number;
 }
 
@@ -82,6 +83,11 @@ export async function getCampaignMetrics(
  * over-weight a small campaign against a large one).
  */
 export async function getProtocolSummary(port: ProtocolQueryPort, protocolId: string): Promise<ProtocolSummary> {
-  const { campaignsSent, totalReach, totalClicks } = await port.getProtocolSummaryCounts(protocolId);
-  return { campaignsSent, totalReach, avgClickRatePct: ratePct(totalClicks, totalReach) };
+  const { campaignsSent, totalReach, totalAudience, totalClicks } = await port.getProtocolSummaryCounts(protocolId);
+  return {
+    campaignsSent,
+    totalReach,
+    avgDeliveredRatePct: ratePct(totalReach, totalAudience),
+    avgClickRatePct: ratePct(totalClicks, totalReach),
+  };
 }

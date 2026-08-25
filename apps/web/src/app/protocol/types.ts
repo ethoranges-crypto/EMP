@@ -151,5 +151,6 @@ export interface CampaignFullMetrics {
 export interface ProtocolSummary {
   campaignsSent: number;
   totalReach: number;
+  avgDeliveredRatePct: number;
   avgClickRatePct: number;
 }

@@ -9,6 +9,7 @@ import { CampaignsPanel } from "./CampaignsPanel";
 import { ComposePanel } from "./ComposePanel";
 import { PaymentPanel } from "./PaymentPanel";
 import { OnboardingGate } from "./gate/OnboardingGate";
+import { useResetOnIdentityChange } from "@/lib/useResetOnIdentityChange";
 import type { ProtocolCampaign, ProtocolMe } from "./types";
 
 type MeStatus = "loading" | "signed-out" | "signed-in" | "error";
@@ -97,6 +98,23 @@ export default function ProtocolJourneyPage() {
     setMe(null);
     setMeStatus("signed-out");
   }
+
+  // Switching to a different wallet, or disconnecting, must never leave the
+  // previous wallet's session (and its campaigns) on screen — see
+  // useResetOnIdentityChange's own doc comment. Clears every piece of
+  // per-identity state this page holds; meStatus goes to "signed-out"
+  // rather than back to "loading" since there's nothing left to wait on —
+  // the gate immediately shows the right connect/sign-in stage for
+  // whatever's now connected (or not).
+  const resetIdentity = useCallback(() => {
+    setMe(null);
+    setMeStatus("signed-out");
+    setCampaigns([]);
+    setComposingCampaignId(null);
+    setPayingCampaignId(null);
+    setJustUpdated(null);
+  }, []);
+  useResetOnIdentityChange(me?.wallet, resetIdentity);
 
   // The onboarding gate (SPEC §4.2, restyled in the "1b" language) owns
   // everything before a protocol has something else to do: not connected,

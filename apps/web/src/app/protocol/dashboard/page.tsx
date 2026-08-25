@@ -10,6 +10,7 @@ import { HistoryList } from "./HistoryList";
 import { LiveRail } from "./LiveRail";
 import { CampaignDetailView } from "./CampaignDetailView";
 import { needsAction } from "./statusStyle";
+import { useResetOnIdentityChange } from "@/lib/useResetOnIdentityChange";
 import type { Category, ProtocolCampaign, ProtocolMe, ProtocolSummary } from "../types";
 
 type MeStatus = "loading" | "ready" | "redirecting";
@@ -108,6 +109,24 @@ export default function ProtocolDashboardPage() {
     const id = setInterval(() => void fetchDashboard(), 5000);
     return () => clearInterval(id);
   }, [campaigns, fetchDashboard]);
+
+  // Switching wallets or disconnecting must never leave the previous
+  // wallet's dashboard on screen — see useResetOnIdentityChange's own doc
+  // comment. Clears every piece of per-identity state this page holds and
+  // sends them back to /protocol, which owns re-authenticating for
+  // whatever's now connected (or not) — same reasoning as the "not
+  // APPROVED" redirect already below.
+  const resetIdentity = useCallback(() => {
+    setMeStatus("loading");
+    setMe(null);
+    setSummary(null);
+    setCampaigns([]);
+    setSelectedId(null);
+    setMessageableCount(null);
+    setFlatCostPerUser(null);
+    router.replace("/protocol");
+  }, [router]);
+  useResetOnIdentityChange(me?.wallet, resetIdentity);
 
   const needsActionCampaign = useMemo(() => campaigns.find((c) => needsAction(c.status)) ?? null, [campaigns]);
 

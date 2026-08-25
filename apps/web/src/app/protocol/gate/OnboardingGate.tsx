@@ -5,7 +5,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import { EVERYTHING_CATEGORY_NAME } from "@emp/config/categories";
 import { Header } from "./Header";
-import { StepRail, type GateStep } from "./StepRail";
+import { StepRail, type Step } from "../StepRail";
 import { LiveRail } from "./LiveRail";
 import { ApplicationSummary } from "./ApplicationSummary";
 import { SignInPanel } from "../SignInPanel";
@@ -31,7 +31,7 @@ function stageFor(isConnected: boolean, meStatus: MeStatus, me: ProtocolMe | nul
   return "signin";
 }
 
-function buildSteps(stage: Stage, me: ProtocolMe | null): GateStep[] {
+function buildSteps(stage: Stage, me: ProtocolMe | null): Step[] {
   const walletDone = stage !== "connect";
   const signinDone = stage === "apply" || stage === "pending";
   const applyDone = stage === "pending";
@@ -131,6 +131,7 @@ export function OnboardingGate({
         <StepRail
           steps={steps}
           footnote="Manual approval exists to keep scams off the network. It is not automatable."
+          accent="amber"
         />
 
         <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto px-[26px] py-[26px]">

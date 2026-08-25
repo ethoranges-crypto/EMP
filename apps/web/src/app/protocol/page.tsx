@@ -4,9 +4,8 @@ import Link from "next/link";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { ApplicationPanel } from "./ApplicationPanel";
-import { NewCampaignPanel } from "./NewCampaignPanel";
 import { CampaignsPanel } from "./CampaignsPanel";
-import { ComposePanel } from "./ComposePanel";
+import { Composer } from "./composer/Composer";
 import { PaymentPanel } from "./PaymentPanel";
 import { OnboardingGate } from "./gate/OnboardingGate";
 import { useResetOnIdentityChange } from "@/lib/useResetOnIdentityChange";
@@ -19,7 +18,9 @@ export default function ProtocolJourneyPage() {
   const [me, setMe] = useState<ProtocolMe | null>(null);
   const [meStatus, setMeStatus] = useState<MeStatus>("loading");
   const [campaigns, setCampaigns] = useState<ProtocolCampaign[]>([]);
-  const [composingCampaignId, setComposingCampaignId] = useState<string | null>(null);
+  // null = closed; { campaignId: null } = composing a brand-new campaign;
+  // { campaignId: string } = resuming an existing DRAFT/REJECTED one.
+  const [composerOpen, setComposerOpen] = useState<{ campaignId: string | null } | null>(null);
   const [payingCampaignId, setPayingCampaignId] = useState<string | null>(null);
   const [justUpdated, setJustUpdated] = useState<{ campaignId: string; message: string } | null>(null);
 
@@ -78,8 +79,8 @@ export default function ProtocolJourneyPage() {
     return () => clearInterval(id);
   }, [campaigns, fetchCampaigns]);
 
-  // Auto-clears the "Draft saved." / "Submitted for review." badge a
-  // few seconds after ComposePanel collapses back into this list.
+  // Auto-clears the "Draft saved." / "Submitted for review." badge a few
+  // seconds after the composer/payment panel closes back to this list.
   useEffect(() => {
     if (!justUpdated) return;
     const id = setTimeout(() => setJustUpdated(null), 4000);
@@ -87,7 +88,7 @@ export default function ProtocolJourneyPage() {
   }, [justUpdated]);
 
   function handlePanelSaved(campaignId: string, message: string) {
-    setComposingCampaignId(null);
+    setComposerOpen(null);
     setPayingCampaignId(null);
     setJustUpdated({ campaignId, message });
     void fetchCampaigns();
@@ -110,7 +111,7 @@ export default function ProtocolJourneyPage() {
     setMe(null);
     setMeStatus("signed-out");
     setCampaigns([]);
-    setComposingCampaignId(null);
+    setComposerOpen(null);
     setPayingCampaignId(null);
     setJustUpdated(null);
   }, []);
@@ -134,6 +135,19 @@ export default function ProtocolJourneyPage() {
     return <OnboardingGate meStatus={meStatus} me={me} onChange={() => void fetchMe()} />;
   }
 
+  // The composer (1b, SPEC §4.3 steps 1+2 merged) owns the full viewport
+  // while open, same as the gate above — a genuinely separate screen, not
+  // a panel nested in the campaigns list.
+  if (composerOpen) {
+    return (
+      <Composer
+        campaignId={composerOpen.campaignId}
+        onClose={() => setComposerOpen(null)}
+        onSaved={(campaignId, message) => handlePanelSaved(campaignId, message)}
+      />
+    );
+  }
+
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-8 px-6 py-16">
       <header className="flex flex-col items-center gap-2 text-center">
@@ -155,13 +169,12 @@ export default function ProtocolJourneyPage() {
           <ApplicationPanel me={me} onChange={() => void fetchMe()} />
           {me.status === "APPROVED" && (
             <>
-              <NewCampaignPanel
-                onCreated={(campaignId) => {
-                  void fetchCampaigns();
-                  setPayingCampaignId(null);
-                  setComposingCampaignId(campaignId);
-                }}
-              />
+              <button
+                onClick={() => setComposerOpen({ campaignId: null })}
+                className="self-start rounded-full bg-pulse-violet px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow"
+              >
+                + New campaign
+              </button>
               <Link
                 href="/protocol/dashboard"
                 className="self-center text-xs text-slate-500 underline underline-offset-4 hover:text-slate-300"
@@ -173,20 +186,13 @@ export default function ProtocolJourneyPage() {
                 justUpdated={justUpdated}
                 onCompose={(id) => {
                   setPayingCampaignId(null);
-                  setComposingCampaignId(id);
+                  setComposerOpen({ campaignId: id });
                 }}
                 onPay={(id) => {
-                  setComposingCampaignId(null);
+                  setComposerOpen(null);
                   setPayingCampaignId(id);
                 }}
               />
-              {composingCampaignId && (
-                <ComposePanel
-                  campaignId={composingCampaignId}
-                  onClose={() => setComposingCampaignId(null)}
-                  onSaved={(message) => handlePanelSaved(composingCampaignId, message)}
-                />
-              )}
               {payingCampaignId && (
                 <PaymentPanel
                   campaignId={payingCampaignId}

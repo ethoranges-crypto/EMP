@@ -10,7 +10,7 @@ export function CampaignsPanel({
   onPay,
 }: {
   campaigns: ProtocolCampaign[];
-  /** A campaign id + short message to show briefly after a save/submit, so the collapse back to this list isn't silent (see ComposePanel's onSaved). */
+  /** A campaign id + short message to show briefly after a save/submit, so the collapse back to this list isn't silent (see Composer's onSaved). */
   justUpdated: { campaignId: string; message: string } | null;
   onCompose: (campaignId: string) => void;
   onPay: (campaignId: string) => void;

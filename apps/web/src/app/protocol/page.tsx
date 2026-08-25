@@ -3,12 +3,12 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { SignInPanel } from "./SignInPanel";
 import { ApplicationPanel } from "./ApplicationPanel";
 import { NewCampaignPanel } from "./NewCampaignPanel";
 import { CampaignsPanel } from "./CampaignsPanel";
 import { ComposePanel } from "./ComposePanel";
 import { PaymentPanel } from "./PaymentPanel";
+import { OnboardingGate } from "./gate/OnboardingGate";
 import type { ProtocolCampaign, ProtocolMe } from "./types";
 
 type MeStatus = "loading" | "signed-out" | "signed-in" | "error";
@@ -98,6 +98,24 @@ export default function ProtocolJourneyPage() {
     setMeStatus("signed-out");
   }
 
+  // The onboarding gate (SPEC §4.2, restyled in the "1b" language) owns
+  // everything before a protocol has something else to do: not connected,
+  // connected-but-not-signed-in, and signed-in-but-PENDING. REJECTED /
+  // APPROVED / SUSPENDED keep the pre-existing layout below — their own
+  // dedicated screens in this visual language (2b for REJECTED) come later.
+  //
+  // Deliberately keyed off meStatus/me.status, not isConnected: the session
+  // cookie is the authoritative "are we signed in" signal once it resolves,
+  // same as the pre-redesign version of this page — a wagmi reconnect flash
+  // on page load (isConnected briefly false before the wallet reconnects)
+  // must never bounce an already-signed-in APPROVED/REJECTED protocol back
+  // into the gate.
+  const showGate = meStatus !== "signed-in" || me?.status === "PENDING";
+
+  if (showGate) {
+    return <OnboardingGate meStatus={meStatus} me={me} onChange={() => void fetchMe()} />;
+  }
+
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-8 px-6 py-16">
       <header className="flex flex-col items-center gap-2 text-center">
@@ -114,19 +132,7 @@ export default function ProtocolJourneyPage() {
         <ConnectButton />
       </div>
 
-      {isConnected && meStatus === "loading" && (
-        <p className="text-center text-sm text-slate-500">Checking session…</p>
-      )}
-
-      {isConnected && meStatus === "signed-out" && <SignInPanel onSignedIn={() => void fetchMe()} />}
-
-      {meStatus === "error" && (
-        <p className="text-center text-sm text-red-400">
-          Something went wrong loading your application. Try refreshing the page.
-        </p>
-      )}
-
-      {meStatus === "signed-in" && me && (
+      {me && (
         <div className="flex flex-col gap-6">
           <ApplicationPanel me={me} onChange={() => void fetchMe()} />
           {me.status === "APPROVED" && (

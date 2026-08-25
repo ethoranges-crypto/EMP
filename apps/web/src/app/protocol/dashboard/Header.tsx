@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { truncateAddress } from "./format";
+import { truncateAddress } from "../address";
 import type { ProtocolMe } from "../types";
 
 /**

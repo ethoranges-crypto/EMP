@@ -49,30 +49,30 @@ export function TelegramPanel({
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-xl border border-white/10 bg-surface p-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Telegram</h2>
+    <section className="flex flex-col gap-3 rounded-card border border-white/[.1] bg-surface p-4">
+      <div className="font-mono text-[9.5px] font-medium tracking-[.12em] text-ink-5">TELEGRAM</div>
 
       {me.telegramLinkStatus === "linked" && justLinked && (
         <div
           role="status"
-          className="flex flex-col items-center gap-2 rounded-lg border border-pulse-cyan/50 bg-pulse-cyan/10 px-6 py-8 text-center shadow-glow"
+          className="flex flex-col items-center gap-2 rounded-card border border-pulse-cyan/50 bg-pulse-cyan/10 px-6 py-8 text-center shadow-glow"
         >
           <span className="text-3xl" aria-hidden>
             📡
           </span>
-          <p className="text-lg font-semibold text-pulse-cyan">You&apos;re linked and all set</p>
-          <p className="text-sm text-slate-300">
+          <p className="text-[15px] font-semibold text-pulse-cyan">You&apos;re linked and all set</p>
+          <p className="text-[12.5px] text-ink-2">
             Telegram is connected. You&apos;ll get messages here based on the interests you pick below.
           </p>
         </div>
       )}
 
       {me.telegramLinkStatus === "linked" && !justLinked && (
-        <p className="text-sm text-pulse-cyan">✓ Linked — you&apos;ll get messages here based on your interests.</p>
+        <p className="text-[12.5px] text-pulse-cyan">✓ Linked — you&apos;ll get messages here based on your interests.</p>
       )}
 
       {me.telegramLinkStatus === "not_configured" && (
-        <p className="text-sm text-slate-500">
+        <p className="text-[12.5px] text-ink-4">
           Telegram isn&apos;t set up on this deployment yet — there&apos;s no bot to link to. Nothing to do here
           until an operator configures one.
         </p>
@@ -80,14 +80,14 @@ export function TelegramPanel({
 
       {me.telegramLinkStatus === "none" && (
         <>
-          <p className="text-sm text-slate-400">
+          <p className="text-[12.5px] text-ink-4">
             A bot can&apos;t message a raw handle — it can only message someone who&apos;s opened a chat with
             it. Generate a link to connect via the EMP bot.
           </p>
           <button
             onClick={requestLink}
             disabled={requesting}
-            className="self-start rounded-full bg-pulse-cyan px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow disabled:opacity-50"
+            className="self-start rounded-md bg-pulse-cyan px-5 py-2.5 text-[12.5px] font-semibold text-onaccent-cyan transition hover:shadow-glow disabled:opacity-50"
           >
             {requesting ? "Generating…" : "Link Telegram"}
           </button>
@@ -96,28 +96,28 @@ export function TelegramPanel({
 
       {me.telegramLinkStatus === "pending" && me.deepLink && (
         <>
-          <p className="text-sm text-slate-400">
+          <p className="text-[12.5px] text-ink-4">
             Open the EMP bot and tap Start. This page updates on its own once it&apos;s confirmed.
           </p>
           <a
             href={me.deepLink}
             target="_blank"
             rel="noreferrer"
-            className="self-start rounded-full bg-pulse-cyan px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow"
+            className="self-start rounded-md bg-pulse-cyan px-5 py-2.5 text-[12.5px] font-semibold text-onaccent-cyan transition hover:shadow-glow"
           >
             Open Telegram
           </a>
-          {countdown && <p className="text-xs text-slate-500">Code expires in {countdown}</p>}
+          {countdown && <p className="text-[11.5px] text-ink-5">Code expires in {countdown}</p>}
         </>
       )}
 
       {me.telegramLinkStatus === "expired" && (
         <>
-          <p className="text-sm text-amber-400">Your link code expired before it was used.</p>
+          <p className="text-[12.5px] text-pulse-amber">Your link code expired before it was used.</p>
           <button
             onClick={requestLink}
             disabled={requesting}
-            className="self-start rounded-full bg-white/10 px-5 py-1.5 text-sm text-slate-100 transition hover:bg-white/20 disabled:opacity-50"
+            className="self-start rounded-md border border-white/[.14] px-5 py-2.5 text-[12.5px] text-ink-2 transition hover:border-white/25 disabled:opacity-50"
           >
             {requesting ? "Generating…" : "Generate a new link"}
           </button>
@@ -127,13 +127,13 @@ export function TelegramPanel({
       {me.telegramLinkStatus === "rejected" && (
         <>
           {/* SPEC §7.5 rejection — surfaced verbatim from telegramLinking.ts's typed errors via the bot. */}
-          <p role="alert" className="text-sm text-red-400">
+          <p role="alert" className="text-[12.5px] text-pulse-red">
             {me.rejectionReason}
           </p>
           <button
             onClick={requestLink}
             disabled={requesting}
-            className="self-start rounded-full bg-white/10 px-5 py-1.5 text-sm text-slate-100 transition hover:bg-white/20 disabled:opacity-50"
+            className="self-start rounded-md border border-white/[.14] px-5 py-2.5 text-[12.5px] text-ink-2 transition hover:border-white/25 disabled:opacity-50"
           >
             {requesting ? "Generating…" : "Try again"}
           </button>

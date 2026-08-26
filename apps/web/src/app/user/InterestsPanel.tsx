@@ -39,12 +39,12 @@ export function InterestsPanel() {
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-xl border border-white/10 bg-surface p-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Interests</h2>
+    <section className="flex flex-col gap-3 rounded-card border border-white/[.1] bg-surface p-4">
+      <div className="font-mono text-[9.5px] font-medium tracking-[.12em] text-ink-5">INTERESTS</div>
 
-      {categories === null && <p className="text-sm text-slate-500">Loading…</p>}
+      {categories === null && <p className="text-[12.5px] text-ink-4">Loading…</p>}
       {categories?.length === 0 && (
-        <p className="text-sm text-slate-500">No interest categories configured yet — check back soon.</p>
+        <p className="text-[12.5px] text-ink-4">No interest categories configured yet — check back soon.</p>
       )}
 
       <div className="flex flex-wrap gap-2">
@@ -52,12 +52,12 @@ export function InterestsPanel() {
           <button
             key={c.id}
             onClick={() => toggle(c.id)}
-            className={
-              "rounded-full border px-4 py-1.5 text-sm transition " +
-              (c.selected
-                ? "border-pulse-violet bg-pulse-violet/10 text-pulse-violet"
-                : "border-white/10 text-slate-400 hover:border-white/30")
-            }
+            className={`rounded-chip px-[13px] py-[7px] text-[12.5px] transition ${
+              c.selected
+                ? "border border-pulse-violet/45 bg-pulse-violet/10 text-pulse-violet"
+                : "border border-white/[.14] text-ink-3 hover:border-white/25"
+            }`}
+            style={{ borderRadius: "20px" }}
           >
             {c.name}
           </button>
@@ -68,7 +68,7 @@ export function InterestsPanel() {
         <button
           onClick={save}
           disabled={saving}
-          className="mt-2 self-start rounded-full bg-white/10 px-5 py-1.5 text-sm text-slate-100 transition hover:bg-white/20 disabled:opacity-50"
+          className="mt-1 self-start rounded-md border border-white/[.14] px-5 py-2.5 text-[12.5px] text-ink-2 transition hover:border-white/25 disabled:opacity-50"
         >
           {saving ? "Saving…" : saved ? "Saved ✓" : "Save interests"}
         </button>

@@ -71,10 +71,11 @@ export default function UserJourneyPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-8 px-6 py-16">
       <header className="flex flex-col items-center gap-2 text-center">
-        <h1 className="bg-gradient-to-r from-pulse-cyan to-pulse-violet bg-clip-text text-3xl font-bold text-transparent">
+        <div className="font-mono text-[13px] font-bold tracking-[.06em] text-ink-4">EMP</div>
+        <h1 className="bg-gradient-to-r from-pulse-cyan to-pulse-violet bg-clip-text text-[28px] font-semibold leading-[1.15] tracking-[-.01em] text-transparent">
           Get on the signal
         </h1>
-        <p className="text-sm text-slate-400">
+        <p className="max-w-[420px] text-[13px] text-ink-4">
           Connect a wallet, pick what you want to hear about, and link Telegram to start receiving
           curated DeFi opportunities.
         </p>
@@ -85,13 +86,13 @@ export default function UserJourneyPage() {
       </div>
 
       {isConnected && meStatus === "loading" && (
-        <p className="text-center text-sm text-slate-500">Checking session…</p>
+        <p className="text-center text-[12.5px] text-ink-4">Checking session…</p>
       )}
 
       {isConnected && meStatus === "signed-out" && <SignInPanel onSignedIn={() => void fetchMe()} />}
 
       {meStatus === "error" && (
-        <p className="text-center text-sm text-red-400">
+        <p className="text-center text-[12.5px] text-pulse-red">
           Something went wrong loading your account. Try refreshing the page.
         </p>
       )}
@@ -103,7 +104,7 @@ export default function UserJourneyPage() {
           <TelegramPanel me={me} onChange={() => void fetchMe()} justLinked={justLinked} />
           <button
             onClick={handleSignOut}
-            className="self-center text-xs text-slate-500 underline underline-offset-4 hover:text-slate-300"
+            className="self-center text-[11.5px] text-ink-5 underline underline-offset-4 transition hover:text-ink-3"
           >
             Sign out
           </button>

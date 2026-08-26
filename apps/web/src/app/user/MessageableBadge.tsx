@@ -35,13 +35,13 @@ export function MessageableBadge({
   return (
     <div
       className={
-        "flex items-center justify-center gap-2 rounded-full border px-4 py-2 text-center text-sm font-medium " +
+        "flex items-center justify-center gap-2 rounded-full border px-4 py-2 text-center text-[12.5px] font-medium " +
         (messageable
           ? "border-pulse-cyan/40 bg-pulse-cyan/10 text-pulse-cyan"
-          : "border-white/10 bg-white/5 text-slate-400")
+          : "border-white/[.1] bg-white/[.04] text-ink-4")
       }
     >
-      <span className={"h-2 w-2 shrink-0 rounded-full " + (messageable ? "bg-pulse-cyan shadow-glow" : "bg-slate-600")} />
+      <span className={"h-2 w-2 shrink-0 rounded-full " + (messageable ? "bg-pulse-cyan shadow-glow" : "bg-ink-5")} />
       {label}
     </div>
   );

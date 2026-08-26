@@ -42,8 +42,8 @@ export function SignInPanel({ onSignedIn }: { onSignedIn: () => void }) {
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-white/10 bg-surface p-6">
-      <label className="flex items-center gap-2 text-sm text-slate-300">
+    <div className="flex flex-col gap-4 rounded-card border border-white/[.1] bg-surface p-4">
+      <label className="flex items-center gap-2 text-[12.5px] text-ink-2">
         <input
           type="checkbox"
           checked={useSafe}
@@ -60,7 +60,7 @@ export function SignInPanel({ onSignedIn }: { onSignedIn: () => void }) {
             placeholder="Safe address (0x…)"
             value={safeAddress}
             onChange={(e) => setSafeAddress(e.target.value)}
-            className="rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100 outline-none focus:border-pulse-cyan/50"
+            className="rounded-md border border-white/[.1] bg-void px-3 py-2.5 font-mono text-[12.5px] text-ink-1 outline-none focus:border-pulse-cyan/50"
           />
           <select
             value={chainKey}
@@ -68,7 +68,7 @@ export function SignInPanel({ onSignedIn }: { onSignedIn: () => void }) {
               setChainKeyTouched(true);
               setChainKey(e.target.value);
             }}
-            className="rounded-md border border-white/10 bg-void px-3 py-2 text-sm text-slate-100"
+            className="rounded-md border border-white/[.1] bg-void px-3 py-2.5 text-[12.5px] text-ink-1"
           >
             {SAFE_CHAIN_OPTIONS.map((c) => (
               <option key={c.key} value={c.key}>
@@ -76,7 +76,7 @@ export function SignInPanel({ onSignedIn }: { onSignedIn: () => void }) {
               </option>
             ))}
           </select>
-          <p className="text-xs text-slate-500">
+          <p className="text-[11.5px] text-ink-4">
             One signature from your owner wallet — EMP verifies on-chain that it&apos;s an owner of this Safe.
           </p>
         </div>
@@ -85,13 +85,13 @@ export function SignInPanel({ onSignedIn }: { onSignedIn: () => void }) {
       <button
         onClick={handleClick}
         disabled={busy || !address || (useSafe && !safeAddress.trim())}
-        className="rounded-full bg-pulse-cyan px-6 py-2 font-medium text-void transition hover:shadow-glow disabled:opacity-50"
+        className="self-start rounded-md bg-pulse-cyan px-5 py-2.5 text-[12.5px] font-semibold text-onaccent-cyan transition hover:shadow-glow disabled:opacity-50"
       >
         {BUTTON_LABEL[status] ?? "Sign in with Ethereum"}
       </button>
 
       {error && (
-        <p role="alert" className="text-sm text-red-400">
+        <p role="alert" className="text-[12.5px] text-pulse-red">
           {error.kind === "rejected" && "Signature request was cancelled or rejected. Try again."}
           {error.kind === "safe-not-owner" && error.message}
           {error.kind === "other" && error.message}

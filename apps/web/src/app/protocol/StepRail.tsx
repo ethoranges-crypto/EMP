@@ -8,15 +8,18 @@ export interface Step {
 const ACCENT = {
   cyan: { ring: "border-pulse-cyan", text: "text-pulse-cyan", subText: "text-ink-5" },
   amber: { ring: "border-pulse-amber", text: "text-pulse-amber", subText: "text-[#8b8069]" },
+  red: { ring: "border-pulse-red", text: "text-pulse-red", subText: "text-ink-5" },
 } as const;
 
 /**
  * Shared by the onboarding gate (2a, amber accent — matching its
- * "awaiting/pending" colour elsewhere) and the campaign composer (1b, cyan
- * accent — matching its primary-action colour). Both screens' rails have
- * the same shape: numbered circles, a connecting line, done/current/future
- * states — only the "current" step's colour differs, which is why this
- * takes an accent rather than being two near-duplicate components.
+ * "awaiting/pending" colour elsewhere), the rejected+resubmit gate (2b,
+ * red accent — the rail marker turned red), and the campaign composer
+ * (1b, cyan accent — matching its primary-action colour). All these
+ * screens' rails have the same shape: numbered circles, a connecting
+ * line, done/current/future states — only the "current" step's colour
+ * differs, which is why this takes an accent rather than being
+ * near-duplicate components.
  */
 export function StepRail({
   steps,
@@ -25,7 +28,7 @@ export function StepRail({
 }: {
   steps: Step[];
   footnote: string;
-  accent?: "cyan" | "amber";
+  accent?: "cyan" | "amber" | "red";
 }) {
   const { ring, text, subText } = ACCENT[accent];
   return (

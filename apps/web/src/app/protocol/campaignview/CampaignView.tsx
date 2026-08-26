@@ -4,11 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 import { StepRail, type Step } from "../StepRail";
 import { BackButton } from "../BackButton";
 import { MessagePreview } from "../MessagePreview";
+import { ScheduleControl } from "../ScheduleControl";
+import { PaidPanel } from "../PaidPanel";
 import { statusChipClass } from "../dashboard/statusStyle";
 import { formatDateTime, formatScheduledSendAt } from "../schedule";
 import type { CampaignDetail, CampaignStatus } from "../types";
 
-const PAYMENT_ELIGIBLE: CampaignStatus[] = ["APPROVED", "AWAITING_PAYMENT", "SCHEDULED"];
+// Still owed — the only statuses that ever open the real pay flow from
+// here. SCHEDULED already has a verified payment (flow ordering:
+// moderate -> pay -> send), so it's deliberately excluded — see this
+// view's own PaidPanel branch below, the paid-campaign routing fix.
+const PAYMENT_ELIGIBLE: CampaignStatus[] = ["APPROVED", "AWAITING_PAYMENT"];
 const CANCELLABLE: CampaignStatus[] = ["IN_REVIEW", "APPROVED"];
 
 // CANCELLED can happen from either IN_REVIEW or APPROVED (cancelCampaign.ts)
@@ -47,11 +53,14 @@ function stepsForStatus(status: CampaignStatus): Step[] {
  * about payment mechanics, not content. This shows the message/image/CTAs
  * that were actually submitted, alongside status and schedule.
  *
- * Rescheduling a SCHEDULED campaign's send time is real, existing
- * capability (rescheduleCampaign.ts) — already paid, so changing or
- * clearing the time is a plain field update, never a new payment. It
- * already lives in PaymentScreen; this view links there rather than
- * reimplementing it, so there's exactly one place that logic exists.
+ * Paid-campaign routing fix: a verified payment (SCHEDULED — flow
+ * ordering means it can't reach that status any other way) is shown here,
+ * not in PaymentScreen — "Pay to fire"/treasury address/copy-address are
+ * stale and confusing once there's nothing left to pay. Instead this
+ * shows PaidPanel (amount/token/chain, "Paid ✓") plus the same
+ * rescheduling control PaymentScreen used to own (rescheduleCampaign.ts —
+ * already paid, so it's a plain field update, never a new payment),
+ * extracted into ScheduleControl so both screens share one implementation.
  *
  * Cancelling (IN_REVIEW/APPROVED, nothing paid yet) is enforced
  * server-side by cancelCampaign() — this view only offers the button when
@@ -125,7 +134,7 @@ export function CampaignView({
               onClick={() => onOpenPayment(campaignId)}
               className="rounded-md bg-pulse-cyan px-[15px] py-2 text-[12.5px] font-semibold text-onaccent-cyan transition hover:shadow-glow"
             >
-              {detail.status === "SCHEDULED" ? "Manage schedule" : detail.status === "AWAITING_PAYMENT" ? "View payment" : "Go to payment"}
+              {detail.status === "AWAITING_PAYMENT" ? "View payment" : "Go to payment"}
             </button>
           )}
           {canCancel && !confirmingCancel && (
@@ -174,6 +183,8 @@ export function CampaignView({
             </p>
           )}
 
+          {detail.status === "SCHEDULED" && detail.payment && <PaidPanel payment={detail.payment} />}
+
           <div>
             <div className="mb-[10px] font-mono text-[9.5px] font-medium tracking-[.12em] text-ink-5">01 · TARGET CATEGORIES</div>
             <div className="flex flex-wrap gap-2">
@@ -212,20 +223,21 @@ export function CampaignView({
             </div>
           </div>
 
-          <div>
-            <div className="mb-[10px] font-mono text-[9.5px] font-medium tracking-[.12em] text-ink-5">03 · SCHEDULE</div>
-            <div className="rounded-card border border-white/[.1] bg-surface p-4 text-[12.5px] text-ink-2">
-              {detail.scheduledSendAt ? (
-                <>
-                  {detail.status === "SCHEDULED" ? "Scheduled for " : "Set to send at "}
-                  {formatScheduledSendAt(detail.scheduledSendAt)}
-                </>
-              ) : (
-                "Sends as soon as payment clears."
-              )}
-              {detail.sentAt && <div className="mt-1 text-ink-4">Actually sent: {formatDateTime(detail.sentAt)}</div>}
+          {detail.status === "SCHEDULED" ? (
+            <ScheduleControl campaignId={campaignId} scheduledSendAt={detail.scheduledSendAt} onUpdated={() => void fetchDetail()} />
+          ) : (
+            <div>
+              <div className="mb-[10px] font-mono text-[9.5px] font-medium tracking-[.12em] text-ink-5">03 · SCHEDULE</div>
+              <div className="rounded-card border border-white/[.1] bg-surface p-4 text-[12.5px] text-ink-2">
+                {detail.scheduledSendAt ? (
+                  <>Set to send at {formatScheduledSendAt(detail.scheduledSendAt)}</>
+                ) : (
+                  "Sends as soon as payment clears."
+                )}
+                {detail.sentAt && <div className="mt-1 text-ink-4">Actually sent: {formatDateTime(detail.sentAt)}</div>}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex flex-col gap-2">
             <div className="font-mono text-[9.5px] font-medium tracking-[.12em] text-ink-5">04 · PREVIEW</div>

@@ -6,7 +6,9 @@ import { StepRail, type Step } from "../StepRail";
 import { BackButton } from "../BackButton";
 import { LiveRail } from "./LiveRail";
 import { statusChipClass } from "../dashboard/statusStyle";
-import { formatCountdown, formatScheduledSendAt, isoToLocalInputValue, localInputValueToIso, localTimeZoneName } from "../schedule";
+import { ScheduleControl } from "../ScheduleControl";
+import { PaidPanel } from "../PaidPanel";
+import { formatCountdown } from "../schedule";
 import type { CampaignDetail, ProtocolMe } from "../types";
 
 interface ChainOption {
@@ -28,6 +30,17 @@ const FAILURE_COPY: Record<string, string> = {
  * late/duplicate), when there is one, is a single stacked box under the
  * main panel — never more than one at a time, since only the *current*
  * payment attempt's status ever applies.
+ *
+ * Routing only ever opens this screen fresh for a campaign still owed
+ * (APPROVED/AWAITING_PAYMENT) — HistoryList's actionFor and CampaignView's
+ * "Go to payment" both gate on that, and a verified payment routes to the
+ * read-only CampaignView instead (its PaidPanel), never here. The one
+ * legitimate way this screen shows `paid` is in-session: it was open while
+ * unpaid and the worker verified the payment underneath it (flipping
+ * status to SCHEDULED) — it stays open rather than bouncing away, but
+ * swaps the pay-instructions panel for the same PaidPanel + ScheduleControl
+ * CampaignView would show, so no stale "Pay to fire"/treasury copy ever
+ * lingers once there's nothing left to pay.
  *
  * Flagged deviations from the design (flag, don't fake):
  *  - Dropped "Pay from wallet" — the protocol sends the transfer itself,
@@ -64,8 +77,6 @@ export function PaymentScreen({
   const [recovering, setRecovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [rescheduling, setRescheduling] = useState(false);
-  const [rescheduleLocal, setRescheduleLocal] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [cancelling, setCancelling] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
@@ -77,7 +88,6 @@ export function PaymentScreen({
     setDetail(data);
     if (data.chain) setChain(data.chain);
     if (data.token) setToken(data.token);
-    setRescheduleLocal(data.scheduledSendAt ? isoToLocalInputValue(data.scheduledSendAt) : "");
   }, [campaignId]);
 
   useEffect(() => {
@@ -131,23 +141,6 @@ export function PaymentScreen({
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [detail?.payment?.status]);
-
-  async function saveReschedule(scheduledSendAt: string | null) {
-    setRescheduling(true);
-    setError(null);
-    const res = await fetch(`/api/protocol/campaigns/${campaignId}/reschedule`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scheduledSendAt }),
-    });
-    setRescheduling(false);
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      setError(data.error ?? "Could not update the schedule.");
-      return;
-    }
-    void fetchDetail();
-  }
 
   async function save() {
     setSaving(true);
@@ -214,6 +207,13 @@ export function PaymentScreen({
   const failed =
     detail.payment && detail.payment.status !== "AWAITING" && detail.payment.status !== "VERIFIED" ? detail.payment.status : null;
   const msLeft = detail.payment ? new Date(detail.payment.windowExpiresAt).getTime() - now : null;
+  // True only for the in-session case: this screen was opened while unpaid
+  // and the worker verified the payment (flipping status to SCHEDULED)
+  // without the protocol navigating away. Routing never opens this screen
+  // fresh for an already-paid campaign — see HistoryList's actionFor and
+  // CampaignView's PaidPanel — but this screen must not keep showing pay
+  // instructions once verified either.
+  const paid = detail.payment?.status === "VERIFIED";
 
   const steps: Step[] = [
     { n: 1, label: "Target", sub: "categories locked", state: "done" },
@@ -250,13 +250,17 @@ export function PaymentScreen({
 
         <div className="flex min-h-0 min-w-0 flex-col gap-[15px] overflow-y-auto px-[26px] py-6">
           <div className="flex flex-col gap-[6px]">
-            <div className="text-[22px] font-semibold leading-[1.15] tracking-[-.01em]">Pay to fire</div>
+            <div className="text-[22px] font-semibold leading-[1.15] tracking-[-.01em]">{paid ? "Payment verified" : "Pay to fire"}</div>
             <div className="max-w-[540px] text-[12.5px] text-ink-4">
-              Send the exact amount from the wallet you signed in with — that&apos;s how we match the payment to
-              this campaign. One treasury address per chain.
+              {paid
+                ? "The chain confirmed this payment — nothing left to pay. Sending is queued."
+                : "Send the exact amount from the wallet you signed in with — that's how we match the payment to this campaign. One treasury address per chain."}
             </div>
           </div>
 
+          {paid && detail.payment && <PaidPanel payment={detail.payment} />}
+
+          {!paid && (
           <div className="grid grid-cols-2 gap-4 rounded-card border border-pulse-amber/30 bg-pulse-amber/5 p-[18px]">
             <div className="flex flex-col gap-[7px]">
               <div className="font-mono text-[9.5px] font-medium tracking-[.12em] text-[#8b8069]">EXACT AMOUNT</div>
@@ -367,8 +371,9 @@ export function PaymentScreen({
               </div>
             )}
           </div>
+          )}
 
-          {detail.payment && (
+          {!paid && detail.payment && (
             <div className="grid grid-cols-4 gap-[11px]">
               <div className="rounded-card border border-white/[.08] bg-surface p-[13px_14px]">
                 <div className="mb-[7px] font-mono text-[10.5px] text-ink-5">CHAIN</div>
@@ -418,44 +423,7 @@ export function PaymentScreen({
           )}
 
           {detail.status === "SCHEDULED" && (
-            <div className="flex flex-col gap-[10px]">
-              <div className="font-mono text-[9.5px] font-medium tracking-[.12em] text-ink-5">SEND TIME</div>
-              <div className="flex flex-col gap-[10px] rounded-card border border-pulse-violet/30 bg-pulse-violet/5 p-4">
-                {detail.scheduledSendAt ? (
-                  <p className="text-[12.5px] text-pulse-violet">Scheduled for {formatScheduledSendAt(detail.scheduledSendAt)}</p>
-                ) : (
-                  <p className="text-[12.5px] text-ink-3">No send time set — pick one below.</p>
-                )}
-                <div className="flex flex-col gap-1">
-                  <input
-                    type="datetime-local"
-                    value={rescheduleLocal}
-                    onChange={(e) => setRescheduleLocal(e.target.value)}
-                    className="w-fit rounded-md border border-white/[.14] bg-void px-3 py-2 text-[12.5px] text-ink-1 outline-none focus:border-pulse-violet/50"
-                  />
-                  <span className="text-[11px] text-ink-5">Your local time — {localTimeZoneName()}.</span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => rescheduleLocal && void saveReschedule(localInputValueToIso(rescheduleLocal))}
-                    disabled={rescheduling || !rescheduleLocal}
-                    className="rounded-md bg-pulse-violet px-4 py-[7px] text-[12px] font-semibold text-void disabled:opacity-50"
-                  >
-                    {rescheduling ? "Saving…" : detail.scheduledSendAt ? "Save new time" : "Schedule send"}
-                  </button>
-                  {detail.scheduledSendAt && (
-                    <button
-                      onClick={() => void saveReschedule(null)}
-                      disabled={rescheduling}
-                      className="rounded-md border border-white/[.14] px-4 py-[7px] text-[12px] text-ink-2 hover:border-white/25 disabled:opacity-50"
-                    >
-                      Cancel scheduled send
-                    </button>
-                  )}
-                </div>
-                <p className="text-[11px] text-ink-5">Already paid — changing or cancelling the send time never requires paying again.</p>
-              </div>
-            </div>
+            <ScheduleControl campaignId={campaignId} scheduledSendAt={detail.scheduledSendAt} onUpdated={() => void fetchDetail()} />
           )}
 
           {error && (

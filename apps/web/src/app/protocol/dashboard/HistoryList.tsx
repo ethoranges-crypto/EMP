@@ -81,11 +81,14 @@ function midColumnNote(c: ProtocolCampaign): string | null {
  * Where a row click goes, by status:
  *  - DRAFT/REJECTED: still being written — the composer (also handles
  *    delete for these two).
- *  - APPROVED/AWAITING_PAYMENT/SCHEDULED: payment is the live concern —
- *    the payment screen (chain/token pick, treasury address, or
- *    reschedule for an already-paid SCHEDULED send).
- *  - IN_REVIEW: the read-only campaign view — the one place cancel (no
- *    payment yet) lives for this status.
+ *  - APPROVED/AWAITING_PAYMENT: payment is still owed — the payment
+ *    screen (chain/token pick, treasury address).
+ *  - IN_REVIEW/SCHEDULED: nothing to pay right now — the read-only
+ *    campaign view. IN_REVIEW is the one place cancel (no payment yet)
+ *    lives; SCHEDULED already has a verified payment, so CampaignView
+ *    shows its PaidPanel + the reschedule control instead of ever
+ *    reopening the pay flow (paid-campaign routing fix — a verified
+ *    payment must never reopen "Pay to fire").
  *  - SENDING/COMPLETE/CANCELLED: the existing inline CampaignDetailView
  *    below, which shows delivered/click metrics CampaignView doesn't —
  *    switching these to CampaignView would lose that, so they're
@@ -93,8 +96,8 @@ function midColumnNote(c: ProtocolCampaign): string | null {
  */
 function actionFor(status: CampaignStatus): "compose" | "pay" | "view" | "detail" {
   if (status === "DRAFT" || status === "REJECTED") return "compose";
-  if (status === "APPROVED" || status === "AWAITING_PAYMENT" || status === "SCHEDULED") return "pay";
-  if (status === "IN_REVIEW") return "view";
+  if (status === "APPROVED" || status === "AWAITING_PAYMENT") return "pay";
+  if (status === "IN_REVIEW" || status === "SCHEDULED") return "view";
   return "detail";
 }
 

@@ -9,7 +9,7 @@ import { StepRail, type Step } from "../StepRail";
 import { LiveRail } from "./LiveRail";
 import { ApplicationSummary } from "./ApplicationSummary";
 import { SignInPanel } from "../SignInPanel";
-import { ApplicationForm } from "../ApplicationPanel";
+import { ApplicationForm } from "../ApplicationForm";
 import type { Category, ProtocolMe } from "../types";
 
 type MeStatus = "loading" | "signed-out" | "signed-in" | "error";
@@ -69,9 +69,9 @@ function buildSteps(stage: Stage, me: ProtocolMe | null): Step[] {
  * carries connect -> sign in -> apply -> pending review, collapsing the
  * step rail as each completes rather than being separate pages — matching
  * how this app already worked (a single /protocol route re-rendering by
- * state), just restyled. REJECTED/APPROVED/SUSPENDED still render via the
- * pre-existing ApplicationPanel-based layout in page.tsx (their own
- * dedicated screens in this visual language come later).
+ * state), just restyled. APPROVED redirects away; REJECTED gets its own
+ * dedicated screen (2b, RejectedGate, page.tsx); SUSPENDED is a plain
+ * fallback in page.tsx (no admin action reaches that status yet).
  */
 export function OnboardingGate({
   meStatus,

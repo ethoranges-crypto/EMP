@@ -67,6 +67,8 @@ export function PaymentScreen({
   const [rescheduling, setRescheduling] = useState(false);
   const [rescheduleLocal, setRescheduleLocal] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const [cancelling, setCancelling] = useState(false);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   const fetchDetail = useCallback(async () => {
     const res = await fetch(`/api/protocol/campaigns/${campaignId}`);
@@ -179,6 +181,24 @@ export function PaymentScreen({
       return;
     }
     void fetchDetail();
+  }
+
+  // Only reachable while APPROVED and no chain/token has been picked yet
+  // (nothing paid) — cancelCampaign() enforces this same gate server-side
+  // regardless of what this button is shown for. Once a payment window is
+  // open, the exception-state Cancel above (recover("cancel-payment")) is
+  // the only way out, and only after that attempt has already failed.
+  async function cancelBeforePayment() {
+    setCancelling(true);
+    setError(null);
+    const res = await fetch(`/api/protocol/campaigns/${campaignId}/cancel`, { method: "POST" });
+    setCancelling(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setError(data.error ?? "Could not cancel this campaign.");
+      return;
+    }
+    onSaved("Campaign cancelled.");
   }
 
   if (!detail) {
@@ -307,13 +327,41 @@ export function PaymentScreen({
                         </button>
                       ))}
                     </div>
-                    <button
-                      onClick={() => void save()}
-                      disabled={saving || !chain}
-                      className="self-start rounded-md bg-pulse-amber px-[13px] py-2 text-[12px] font-semibold text-onaccent-amber disabled:opacity-50"
-                    >
-                      {saving ? "Opening…" : "Show payment details"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => void save()}
+                        disabled={saving || !chain}
+                        className="rounded-md bg-pulse-amber px-[13px] py-2 text-[12px] font-semibold text-onaccent-amber disabled:opacity-50"
+                      >
+                        {saving ? "Opening…" : "Show payment details"}
+                      </button>
+                      {detail.status === "APPROVED" && !confirmingCancel && (
+                        <button
+                          onClick={() => setConfirmingCancel(true)}
+                          className="rounded-md border border-white/[.14] px-[13px] py-2 text-[12px] text-ink-3 transition hover:border-pulse-red/50 hover:text-pulse-red"
+                        >
+                          Cancel campaign
+                        </button>
+                      )}
+                      {detail.status === "APPROVED" && confirmingCancel && (
+                        <>
+                          <span className="text-[11.5px] text-ink-4">Cancel for good?</span>
+                          <button
+                            onClick={() => void cancelBeforePayment()}
+                            disabled={cancelling}
+                            className="rounded-md bg-pulse-red px-[13px] py-2 text-[12px] font-semibold text-white disabled:opacity-50"
+                          >
+                            {cancelling ? "Cancelling…" : "Yes, cancel"}
+                          </button>
+                          <button
+                            onClick={() => setConfirmingCancel(false)}
+                            className="rounded-md border border-white/[.14] px-[13px] py-2 text-[12px] text-ink-2 hover:border-white/25"
+                          >
+                            Never mind
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </>
                 )}
               </div>

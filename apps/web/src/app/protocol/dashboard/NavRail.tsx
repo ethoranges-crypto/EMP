@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { isActive } from "./statusStyle";
 import type { ProtocolCampaign } from "../types";
 
-export type HistoryFilter = "ALL" | "NEEDS_ACTION" | "SENDING" | "IN_REVIEW" | "COMPLETE" | "DRAFT";
+export type HistoryFilter = "ALL" | "NEEDS_ACTION" | "SENDING" | "IN_REVIEW" | "COMPLETE" | "DRAFT" | "CANCELLED";
 
 const FILTERS: Array<{ key: HistoryFilter; label: string; match: (c: ProtocolCampaign) => boolean; tone: string }> = [
   { key: "ALL", label: "All", match: () => true, tone: "text-ink-4" },
@@ -13,6 +12,7 @@ const FILTERS: Array<{ key: HistoryFilter; label: string; match: (c: ProtocolCam
   { key: "IN_REVIEW", label: "In review", match: (c) => c.status === "IN_REVIEW", tone: "text-ink-4" },
   { key: "COMPLETE", label: "Complete", match: (c) => c.status === "COMPLETE", tone: "text-ink-4" },
   { key: "DRAFT", label: "Drafts", match: (c) => c.status === "DRAFT", tone: "text-ink-4" },
+  { key: "CANCELLED", label: "Cancelled", match: (c) => c.status === "CANCELLED", tone: "text-ink-4" },
 ];
 
 /**
@@ -28,10 +28,12 @@ export function NavRail({
   campaigns,
   filter,
   onFilterChange,
+  onNewCampaign,
 }: {
   campaigns: ProtocolCampaign[];
   filter: HistoryFilter;
   onFilterChange: (f: HistoryFilter) => void;
+  onNewCampaign: () => void;
 }) {
   const activeCampaigns = campaigns.filter((c) => isActive(c.status));
   const sendingCount = campaigns.filter((c) => c.status === "SENDING").length;
@@ -45,10 +47,13 @@ export function NavRail({
           <div className="h-1 w-1 rounded-sm bg-pulse-cyan" />
           Campaigns
         </div>
-        <Link href="/protocol" className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-ink-3 transition hover:bg-white/[.04]">
+        <button
+          onClick={onNewCampaign}
+          className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-ink-3 transition hover:bg-white/[.04]"
+        >
           <div className="h-1 w-1 rounded-sm bg-white/20" />
           New campaign
-        </Link>
+        </button>
         {["Audience explorer", "Payments", "Settings"].map((label) => (
           <div key={label} className="flex cursor-not-allowed items-center gap-2.5 rounded-md px-2.5 py-2 text-ink-6" title="Not built yet">
             <div className="h-1 w-1 rounded-sm bg-white/10" />

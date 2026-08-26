@@ -6,10 +6,9 @@ import {
   ProtocolNotApprovedError,
   createDraftCampaign,
   createPrismaCreateCampaignStore,
-  createPrismaProtocolQueryStore,
-  getCampaignMetrics,
 } from "@emp/core";
 import { UnauthorizedError, requireRole } from "@/lib/session";
+import { getProtocolCampaignsList } from "@/lib/protocolCampaignsList";
 
 interface PostBody {
   title: string;
@@ -52,64 +51,14 @@ export async function POST(request: Request) {
  * so a direct query is fine here. Contrast with audience-count and
  * campaign metrics, which must go through @emp/core's protocol-queries
  * chokepoint because those *do* derive from user data (CLAUDE.md rule 1).
+ * getProtocolCampaignsList (@/lib) is the one place this query lives —
+ * the CSV export (.../campaigns/export) uses the exact same function.
  */
 export async function GET() {
   try {
     const { accountId } = await requireRole("protocol");
-    const campaigns = await prisma.campaign.findMany({
-      where: { protocolId: accountId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        categories: { include: { category: true } },
-        _count: { select: { ctas: true } },
-        // Only the single most recent review is ever relevant for display —
-        // if it was a REJECTED decision and the campaign is still (or again)
-        // REJECTED, that's the reason shown; a later resubmission moves
-        // status off REJECTED entirely, so the row below just won't surface it.
-        moderationReviews: { orderBy: { createdAt: "desc" }, take: 1 },
-      },
-    });
-    // Metrics (delivered %, click %) go through @emp/core's protocol-queries
-    // chokepoint, same rule as audience-count — only fetched for COMPLETE
-    // campaigns (typically zero or one at a time in this list), not on
-    // every row, since it's the confirmation a protocol actually wants once
-    // a campaign is done, not something meaningful mid-send.
-    const metricsStore = createPrismaProtocolQueryStore(prisma);
-    const metricsByCampaignId = new Map(
-      await Promise.all(
-        campaigns
-          .filter((c) => c.status === "COMPLETE")
-          .map(async (c) => [c.id, await getCampaignMetrics(metricsStore, c.id)] as const),
-      ),
-    );
-
-    return NextResponse.json({
-      campaigns: campaigns.map((c) => {
-        const metrics = metricsByCampaignId.get(c.id);
-        return {
-          id: c.id,
-          title: c.title,
-          status: c.status,
-          chain: c.chain,
-          token: c.token,
-          categoryNames: c.categories.map((cc) => cc.category.name),
-          hasComposeContent: c.bodyText !== null,
-          ctaCount: c._count.ctas,
-          snapshotCount: c.snapshotCount,
-          costAmount: c.costAmount?.toString() ?? null,
-          rejectionReason: c.status === "REJECTED" ? (c.moderationReviews[0]?.reason ?? null) : null,
-          createdAt: c.createdAt,
-          scheduledSendAt: c.scheduledSendAt,
-          sentAt: c.sentAt,
-          metrics: metrics
-            ? {
-                delivered: metrics.delivered,
-                clicks: { total: metrics.clicks.total, ratePct: metrics.clicks.ratePct },
-              }
-            : null,
-        };
-      }),
-    });
+    const campaigns = await getProtocolCampaignsList(accountId);
+    return NextResponse.json({ campaigns });
   } catch (err) {
     if (err instanceof UnauthorizedError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     throw err;

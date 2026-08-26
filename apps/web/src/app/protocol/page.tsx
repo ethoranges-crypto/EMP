@@ -1,38 +1,27 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { useAccount } from "wagmi";
+import { useRouter } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { ApplicationPanel } from "./ApplicationPanel";
-import { CampaignsPanel } from "./CampaignsPanel";
-import { Composer } from "./composer/Composer";
-import { CampaignView } from "./campaignview/CampaignView";
-import { PaymentScreen } from "./payment/PaymentScreen";
 import { OnboardingGate } from "./gate/OnboardingGate";
 import { useResetOnIdentityChange } from "@/lib/useResetOnIdentityChange";
-import type { ProtocolCampaign, ProtocolMe } from "./types";
+import type { ProtocolMe } from "./types";
 
 type MeStatus = "loading" | "signed-out" | "signed-in" | "error";
 
+/**
+ * The onboarding gate (SPEC §4.2) — connect, sign in, apply, wait on admin
+ * review. Once APPROVED, this page's whole job is done: it redirects
+ * straight to /protocol/dashboard, the single home for an APPROVED
+ * protocol (campaign list, "New campaign", stats — previously duplicated
+ * here, now consolidated there). REJECTED and SUSPENDED still render the
+ * ApplicationPanel-based layout below — their own dedicated screens in
+ * this visual language (2b for REJECTED) come later.
+ */
 export default function ProtocolJourneyPage() {
-  const { isConnected } = useAccount();
+  const router = useRouter();
   const [me, setMe] = useState<ProtocolMe | null>(null);
   const [meStatus, setMeStatus] = useState<MeStatus>("loading");
-  const [campaigns, setCampaigns] = useState<ProtocolCampaign[]>([]);
-  // null = closed; { campaignId: null } = composing a brand-new campaign;
-  // { campaignId: string } = resuming an existing DRAFT/REJECTED one.
-  const [composerOpen, setComposerOpen] = useState<{ campaignId: string | null } | null>(null);
-  const [payingCampaignId, setPayingCampaignId] = useState<string | null>(null);
-  const [viewingCampaignId, setViewingCampaignId] = useState<string | null>(null);
-  const [justUpdated, setJustUpdated] = useState<{ campaignId: string; message: string } | null>(null);
-  const [removedMessage, setRemovedMessage] = useState<string | null>(null);
-
-  const fetchCampaigns = useCallback(async () => {
-    const res = await fetch("/api/protocol/campaigns");
-    if (!res.ok) return;
-    const data = (await res.json()) as { campaigns: ProtocolCampaign[] };
-    setCampaigns(data.campaigns);
-  }, []);
 
   const fetchMe = useCallback(async () => {
     try {
@@ -65,60 +54,11 @@ export default function ProtocolJourneyPage() {
     return () => clearInterval(id);
   }, [me?.status, me?.name, fetchMe]);
 
+  // The moment an admin approves, bounce straight to the dashboard — this
+  // page never renders campaign management itself.
   useEffect(() => {
-    if (me?.status !== "APPROVED") return;
-    void fetchCampaigns();
-  }, [me?.status, fetchCampaigns]);
-
-  // Poll while any campaign is SENDING or SCHEDULED so it flips live —
-  // otherwise nothing ever re-fetches this list once a campaign leaves
-  // AWAITING_PAYMENT (the payment panel that was polling closes as soon as
-  // SENDING/SCHEDULED first appears), and it would sit there looking stuck:
-  // SENDING -> COMPLETE once the worker finishes, or SCHEDULED -> SENDING
-  // once its send time arrives and the worker's due-scan picks it up.
-  useEffect(() => {
-    if (!campaigns.some((c) => c.status === "SENDING" || c.status === "SCHEDULED")) return;
-    const id = setInterval(() => void fetchCampaigns(), 5000);
-    return () => clearInterval(id);
-  }, [campaigns, fetchCampaigns]);
-
-  // Auto-clears the "Draft saved." / "Submitted for review." badge a few
-  // seconds after the composer/payment panel closes back to this list.
-  useEffect(() => {
-    if (!justUpdated) return;
-    const id = setTimeout(() => setJustUpdated(null), 4000);
-    return () => clearTimeout(id);
-  }, [justUpdated]);
-
-  // Same auto-clear for the delete/cancel confirmation.
-  useEffect(() => {
-    if (!removedMessage) return;
-    const id = setTimeout(() => setRemovedMessage(null), 4000);
-    return () => clearTimeout(id);
-  }, [removedMessage]);
-
-  function handlePanelSaved(campaignId: string, message: string) {
-    setComposerOpen(null);
-    setPayingCampaignId(null);
-    setViewingCampaignId(null);
-    setJustUpdated({ campaignId, message });
-    void fetchCampaigns();
-  }
-
-  // Delete/cancel leave no campaign to highlight in the list — same
-  // refetch-and-close as handlePanelSaved, minus the campaignId a
-  // just-saved row would have.
-  function handleCampaignRemoved(message: string) {
-    setComposerOpen(null);
-    setPayingCampaignId(null);
-    setViewingCampaignId(null);
-    setJustUpdated(null);
-    void fetchCampaigns();
-    // A brief standalone confirmation, same shape as justUpdated but with
-    // no campaignId (the row it referred to is gone) — shown once, then
-    // cleared by the same timeout effect.
-    setRemovedMessage(message);
-  }
+    if (me?.status === "APPROVED") router.replace("/protocol/dashboard");
+  }, [me?.status, router]);
 
   async function handleSignOut() {
     await fetch("/api/auth/signout", { method: "POST" });
@@ -127,21 +67,14 @@ export default function ProtocolJourneyPage() {
   }
 
   // Switching to a different wallet, or disconnecting, must never leave the
-  // previous wallet's session (and its campaigns) on screen — see
-  // useResetOnIdentityChange's own doc comment. Clears every piece of
-  // per-identity state this page holds; meStatus goes to "signed-out"
-  // rather than back to "loading" since there's nothing left to wait on —
-  // the gate immediately shows the right connect/sign-in stage for
-  // whatever's now connected (or not).
+  // previous wallet's session on screen — see useResetOnIdentityChange's
+  // own doc comment. meStatus goes to "signed-out" rather than back to
+  // "loading" since there's nothing left to wait on — the gate immediately
+  // shows the right connect/sign-in stage for whatever's now connected (or
+  // not).
   const resetIdentity = useCallback(() => {
     setMe(null);
     setMeStatus("signed-out");
-    setCampaigns([]);
-    setComposerOpen(null);
-    setPayingCampaignId(null);
-    setViewingCampaignId(null);
-    setJustUpdated(null);
-    setRemovedMessage(null);
   }, []);
   useResetOnIdentityChange(me?.wallet, resetIdentity);
 
@@ -163,45 +96,14 @@ export default function ProtocolJourneyPage() {
     return <OnboardingGate meStatus={meStatus} me={me} onChange={() => void fetchMe()} />;
   }
 
-  // The composer (1b, SPEC §4.3 steps 1+2 merged) owns the full viewport
-  // while open, same as the gate above — a genuinely separate screen, not
-  // a panel nested in the campaigns list.
-  if (composerOpen) {
+  // Redirect is in flight (see the effect above) — a loading state here
+  // keeps the ApplicationPanel-based layout below from flashing on screen
+  // for an already-approved protocol before the bounce completes.
+  if (me?.status === "APPROVED") {
     return (
-      <Composer
-        campaignId={composerOpen.campaignId}
-        onClose={() => setComposerOpen(null)}
-        onSaved={(campaignId, message) => handlePanelSaved(campaignId, message)}
-        onDeleted={(message) => handleCampaignRemoved(message)}
-      />
-    );
-  }
-
-  // Read-only view for anything past DRAFT/REJECTED (IN_REVIEW and later)
-  // — same full-viewport treatment as the composer/gate above.
-  if (viewingCampaignId) {
-    return (
-      <CampaignView
-        campaignId={viewingCampaignId}
-        onClose={() => setViewingCampaignId(null)}
-        onChanged={(message) => handleCampaignRemoved(message)}
-        onOpenPayment={(id) => {
-          setViewingCampaignId(null);
-          setPayingCampaignId(id);
-        }}
-      />
-    );
-  }
-
-  // The payment screen (1b/2c) owns the full viewport too — same reasoning
-  // as the composer/campaign view above.
-  if (payingCampaignId) {
-    return (
-      <PaymentScreen
-        campaignId={payingCampaignId}
-        onClose={() => setPayingCampaignId(null)}
-        onSaved={(message) => handlePanelSaved(payingCampaignId, message)}
-      />
+      <main className="flex h-screen items-center justify-center bg-void">
+        <p className="text-sm text-ink-4">Loading…</p>
+      </main>
     );
   }
 
@@ -224,40 +126,6 @@ export default function ProtocolJourneyPage() {
       {me && (
         <div className="flex flex-col gap-6">
           <ApplicationPanel me={me} onChange={() => void fetchMe()} />
-          {me.status === "APPROVED" && (
-            <>
-              <button
-                onClick={() => setComposerOpen({ campaignId: null })}
-                className="self-start rounded-full bg-pulse-violet px-5 py-1.5 text-sm font-medium text-void transition hover:shadow-glow"
-              >
-                + New campaign
-              </button>
-              <Link
-                href="/protocol/dashboard"
-                className="self-center text-xs text-slate-500 underline underline-offset-4 hover:text-slate-300"
-              >
-                View campaign history &amp; analytics →
-              </Link>
-              {removedMessage && <p className="text-center text-xs text-pulse-cyan">{removedMessage}</p>}
-              <CampaignsPanel
-                campaigns={campaigns}
-                justUpdated={justUpdated}
-                onCompose={(id) => {
-                  setPayingCampaignId(null);
-                  setComposerOpen({ campaignId: id });
-                }}
-                onPay={(id) => {
-                  setComposerOpen(null);
-                  setPayingCampaignId(id);
-                }}
-                onView={(id) => {
-                  setComposerOpen(null);
-                  setPayingCampaignId(null);
-                  setViewingCampaignId(id);
-                }}
-              />
-            </>
-          )}
           <button
             onClick={handleSignOut}
             className="self-center text-xs text-slate-500 underline underline-offset-4 hover:text-slate-300"

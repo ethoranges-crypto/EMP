@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import type { ProtocolCampaign } from "../types";
 import { PAYMENT_TOKENS } from "@emp/config/paymentTokens";
 
@@ -22,11 +21,13 @@ export function LiveRail({
   flatCostPerUser,
   needsActionCampaign,
   bestCampaign,
+  onGoToPayment,
 }: {
   messageableCount: number | null;
   flatCostPerUser: number | null;
   needsActionCampaign: ProtocolCampaign | null;
   bestCampaign: { title: string; ratePct: number } | null;
+  onGoToPayment: (campaignId: string) => void;
 }) {
   return (
     <aside className="flex flex-col gap-[18px] overflow-y-auto border-l border-white/[.07] bg-rail px-[22px] py-6">
@@ -68,12 +69,12 @@ export function LiveRail({
               ? " is approved and awaiting payment before it can send."
               : " is approved — pick a chain and token to open its payment window."}
           </div>
-          <Link
-            href="/protocol"
+          <button
+            onClick={() => onGoToPayment(needsActionCampaign.id)}
             className="self-start rounded-md bg-pulse-amber px-[13px] py-2 text-xs font-semibold text-onaccent-amber"
           >
             Go to payment
-          </Link>
+          </button>
         </div>
       )}
 

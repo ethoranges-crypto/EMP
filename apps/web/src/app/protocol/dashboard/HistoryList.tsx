@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { monthYearLabel, shortDate, shortDateTime } from "./format";
 import { statusChipClass } from "./statusStyle";
-import type { ProtocolCampaign } from "../types";
+import type { ProtocolCampaign, CampaignStatus } from "../types";
 import type { HistoryFilter } from "./NavRail";
 
 const FILTER_MATCH: Record<HistoryFilter, (c: ProtocolCampaign) => boolean> = {
@@ -13,6 +12,7 @@ const FILTER_MATCH: Record<HistoryFilter, (c: ProtocolCampaign) => boolean> = {
   IN_REVIEW: (c) => c.status === "IN_REVIEW",
   COMPLETE: (c) => c.status === "COMPLETE",
   DRAFT: (c) => c.status === "DRAFT",
+  CANCELLED: (c) => c.status === "CANCELLED",
 };
 
 function metaLine(c: ProtocolCampaign): string {
@@ -77,14 +77,41 @@ function midColumnNote(c: ProtocolCampaign): string | null {
   return null;
 }
 
-/** Statuses where the whole row is an action, not a detail view — clicking it should go straight to where that action happens (today: /protocol, since dedicated payment/compose screens in this language aren't built yet). */
-function actionHref(status: ProtocolCampaign["status"]): string | null {
-  if (status === "APPROVED" || status === "AWAITING_PAYMENT" || status === "DRAFT" || status === "REJECTED") return "/protocol";
-  return null;
+/**
+ * Where a row click goes, by status:
+ *  - DRAFT/REJECTED: still being written — the composer (also handles
+ *    delete for these two).
+ *  - APPROVED/AWAITING_PAYMENT/SCHEDULED: payment is the live concern —
+ *    the payment screen (chain/token pick, treasury address, or
+ *    reschedule for an already-paid SCHEDULED send).
+ *  - IN_REVIEW: the read-only campaign view — the one place cancel (no
+ *    payment yet) lives for this status.
+ *  - SENDING/COMPLETE/CANCELLED: the existing inline CampaignDetailView
+ *    below, which shows delivered/click metrics CampaignView doesn't —
+ *    switching these to CampaignView would lose that, so they're
+ *    deliberately left as they were.
+ */
+function actionFor(status: CampaignStatus): "compose" | "pay" | "view" | "detail" {
+  if (status === "DRAFT" || status === "REJECTED") return "compose";
+  if (status === "APPROVED" || status === "AWAITING_PAYMENT" || status === "SCHEDULED") return "pay";
+  if (status === "IN_REVIEW") return "view";
+  return "detail";
 }
 
-function Row({ c, onSelect }: { c: ProtocolCampaign; onSelect: (id: string) => void }) {
-  const href = actionHref(c.status);
+function Row({
+  c,
+  onSelect,
+  onCompose,
+  onPay,
+  onView,
+}: {
+  c: ProtocolCampaign;
+  onSelect: (id: string) => void;
+  onCompose: (id: string) => void;
+  onPay: (id: string) => void;
+  onView: (id: string) => void;
+}) {
+  const action = actionFor(c.status);
   const note = midColumnNote(c);
 
   const content = (
@@ -111,15 +138,11 @@ function Row({ c, onSelect }: { c: ProtocolCampaign; onSelect: (id: string) => v
     </div>
   );
 
-  if (href) {
-    return (
-      <Link href={href} className="block">
-        {content}
-      </Link>
-    );
-  }
+  const onClick =
+    action === "compose" ? () => onCompose(c.id) : action === "pay" ? () => onPay(c.id) : action === "view" ? () => onView(c.id) : () => onSelect(c.id);
+
   return (
-    <button onClick={() => onSelect(c.id)} className="block w-full text-left">
+    <button onClick={onClick} className="block w-full text-left">
       {content}
     </button>
   );
@@ -129,10 +152,16 @@ export function HistoryList({
   campaigns,
   filter,
   onSelect,
+  onCompose,
+  onPay,
+  onView,
 }: {
   campaigns: ProtocolCampaign[];
   filter: HistoryFilter;
   onSelect: (id: string) => void;
+  onCompose: (id: string) => void;
+  onPay: (id: string) => void;
+  onView: (id: string) => void;
 }) {
   const filtered = campaigns.filter(FILTER_MATCH[filter]);
 
@@ -154,7 +183,7 @@ export function HistoryList({
         <div key={g.label} className="flex flex-col gap-2">
           <div className="pt-1 font-mono text-[9.5px] font-medium tracking-[.14em] text-ink-6">{g.label}</div>
           {g.rows.map((c) => (
-            <Row key={c.id} c={c} onSelect={onSelect} />
+            <Row key={c.id} c={c} onSelect={onSelect} onCompose={onCompose} onPay={onPay} onView={onView} />
           ))}
         </div>
       ))}

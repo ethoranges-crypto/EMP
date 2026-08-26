@@ -7,7 +7,7 @@ import { ApplicationPanel } from "./ApplicationPanel";
 import { CampaignsPanel } from "./CampaignsPanel";
 import { Composer } from "./composer/Composer";
 import { CampaignView } from "./campaignview/CampaignView";
-import { PaymentPanel } from "./PaymentPanel";
+import { PaymentScreen } from "./payment/PaymentScreen";
 import { OnboardingGate } from "./gate/OnboardingGate";
 import { useResetOnIdentityChange } from "@/lib/useResetOnIdentityChange";
 import type { ProtocolCampaign, ProtocolMe } from "./types";
@@ -193,6 +193,18 @@ export default function ProtocolJourneyPage() {
     );
   }
 
+  // The payment screen (1b/2c) owns the full viewport too — same reasoning
+  // as the composer/campaign view above.
+  if (payingCampaignId) {
+    return (
+      <PaymentScreen
+        campaignId={payingCampaignId}
+        onClose={() => setPayingCampaignId(null)}
+        onSaved={(message) => handlePanelSaved(payingCampaignId, message)}
+      />
+    );
+  }
+
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-8 px-6 py-16">
       <header className="flex flex-col items-center gap-2 text-center">
@@ -244,13 +256,6 @@ export default function ProtocolJourneyPage() {
                   setViewingCampaignId(id);
                 }}
               />
-              {payingCampaignId && (
-                <PaymentPanel
-                  campaignId={payingCampaignId}
-                  onClose={() => setPayingCampaignId(null)}
-                  onSaved={(message) => handlePanelSaved(payingCampaignId, message)}
-                />
-              )}
             </>
           )}
           <button

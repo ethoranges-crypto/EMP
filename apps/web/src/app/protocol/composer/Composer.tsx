@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CAMPAIGN_TITLE_MAX_LENGTH } from "@emp/config/campaignLimits";
 import { CTA_LABEL_MAX_LENGTH, telegramTextLimit } from "@emp/config/telegramLimits";
 import { StepRail, type Step } from "../StepRail";
+import { BackButton } from "../BackButton";
 import { LiveRail } from "./LiveRail";
 import { TargetCategories } from "./TargetCategories";
 import { MessageCard } from "./MessageCard";
@@ -372,6 +373,7 @@ export function Composer({
     <main className="flex h-screen flex-col overflow-hidden bg-void text-[13px] text-ink-1">
       <header className="flex h-[57px] shrink-0 items-center gap-4 border-b border-white/[.07] px-[26px]">
         <div className="font-mono text-[13px] font-bold tracking-[.06em]">EMP</div>
+        <BackButton onClick={onClose} />
         <div className="h-4 w-px bg-white/[.12]" />
         {/* The editable title field lives below, above "01 · TARGET
             CATEGORIES", with its own clear label — this is just a

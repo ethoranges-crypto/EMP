@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { StepRail, type Step } from "../StepRail";
+import { BackButton } from "../BackButton";
 import { MessagePreview } from "../MessagePreview";
 import { statusChipClass } from "../dashboard/statusStyle";
 import { formatDateTime, formatScheduledSendAt } from "../schedule";
@@ -42,14 +43,14 @@ function stepsForStatus(status: CampaignStatus): Step[] {
  * via Composer) — SPEC gives content no way back once it's IN_REVIEW+
  * (CLAUDE.md rule 2), but until now those campaigns had literally no
  * detail screen: IN_REVIEW had no click-through at all, and
- * APPROVED/AWAITING_PAYMENT/SCHEDULED only opened PaymentPanel, which is
+ * APPROVED/AWAITING_PAYMENT/SCHEDULED only opened PaymentScreen, which is
  * about payment mechanics, not content. This shows the message/image/CTAs
  * that were actually submitted, alongside status and schedule.
  *
  * Rescheduling a SCHEDULED campaign's send time is real, existing
  * capability (rescheduleCampaign.ts) — already paid, so changing or
  * clearing the time is a plain field update, never a new payment. It
- * already lives in PaymentPanel; this view links there rather than
+ * already lives in PaymentScreen; this view links there rather than
  * reimplementing it, so there's exactly one place that logic exists.
  *
  * Cancelling (IN_REVIEW/APPROVED, nothing paid yet) is enforced
@@ -112,6 +113,7 @@ export function CampaignView({
     <main className="flex h-screen flex-col overflow-hidden bg-void text-[13px] text-ink-1">
       <header className="flex h-[57px] shrink-0 items-center gap-4 border-b border-white/[.07] px-[26px]">
         <div className="font-mono text-[13px] font-bold tracking-[.06em]">EMP</div>
+        <BackButton onClick={onClose} />
         <div className="h-4 w-px bg-white/[.12]" />
         <div className="min-w-0 max-w-[280px] flex-1 truncate text-[13px] text-ink-2">{detail.title}</div>
         <span className={`whitespace-nowrap rounded-chip px-2.5 py-1 font-mono text-[10.5px] font-medium ${statusChipClass(detail.status)}`}>

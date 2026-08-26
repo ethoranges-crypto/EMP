@@ -36,3 +36,13 @@ export function formatScheduledSendAt(iso: string): string {
 export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
+
+/** "H:MM:SS" (or "0:00:00" once past) — a live countdown to a future instant, e.g. a payment window's expiry. */
+export function formatCountdown(msRemaining: number): string {
+  const totalSeconds = Math.max(0, Math.floor(msRemaining / 1000));
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${h}:${pad(m)}:${pad(s)}`;
+}

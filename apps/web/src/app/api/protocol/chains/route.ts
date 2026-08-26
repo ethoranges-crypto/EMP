@@ -13,7 +13,7 @@ import { UnauthorizedError, requireRole } from "@/lib/session";
  *
  * Every failure path below returns real JSON, never a bare `throw` — an
  * unhandled exception here previously surfaced to the client as a
- * non-JSON 500 body ("Unexpected end of JSON input" in PaymentPanel.tsx).
+ * non-JSON 500 body ("Unexpected end of JSON input" in PaymentScreen.tsx).
  * getChains() itself no longer throws on a single bad chain's env (see
  * chains.ts), but this still guards against any other failure mode.
  */

@@ -43,9 +43,14 @@ describe("campaign status transitions — CLAUDE.md rule 2 (moderate -> pay -> s
     expect(canTransition("CANCELLED", "AWAITING_PAYMENT")).toBe(false);
   });
 
-  it("never lets a campaign jump straight to CANCELLED from outside a payment attempt", () => {
-    expect(canTransition("APPROVED", "CANCELLED")).toBe(false);
+  it("allows giving up before any payment exists — IN_REVIEW/APPROVED to CANCELLED (cancelCampaign.ts)", () => {
+    expect(canTransition("IN_REVIEW", "CANCELLED")).toBe(true);
+    expect(canTransition("APPROVED", "CANCELLED")).toBe(true);
+  });
+
+  it("DRAFT/REJECTED have no CANCELLED transition — those are deleted outright (deleteCampaign.ts), never cancelled", () => {
     expect(canTransition("DRAFT", "CANCELLED")).toBe(false);
+    expect(canTransition("REJECTED", "CANCELLED")).toBe(false);
   });
 
   it("allows payment verification to hold a scheduled campaign instead of sending immediately", () => {

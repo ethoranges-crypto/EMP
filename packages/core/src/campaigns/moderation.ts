@@ -43,11 +43,17 @@ export type CampaignStatus =
  * transition, so there's deliberately no SCHEDULED -> CANCELLED here: that
  * would be a dead end requiring a brand-new campaign, which the "cancel and
  * reschedule without re-paying" requirement explicitly rules out.
+ *
+ * IN_REVIEW -> CANCELLED and APPROVED -> CANCELLED (cancelCampaign.ts) are
+ * the "give up before paying" path — nothing has ever been paid at either
+ * status (a Payment row, and AWAITING_PAYMENT, only start to exist once
+ * setPaymentMethod.ts runs), so unlike the AWAITING_PAYMENT recovery path
+ * above, there's no failed-payment precondition to satisfy first.
  */
 const ALLOWED_TRANSITIONS: Record<CampaignStatus, CampaignStatus[]> = {
   DRAFT: ["IN_REVIEW"],
-  IN_REVIEW: ["APPROVED", "REJECTED"],
-  APPROVED: ["AWAITING_PAYMENT"],
+  IN_REVIEW: ["APPROVED", "REJECTED", "CANCELLED"],
+  APPROVED: ["AWAITING_PAYMENT", "CANCELLED"],
   REJECTED: ["IN_REVIEW"],
   AWAITING_PAYMENT: ["SENDING", "SCHEDULED", "APPROVED", "CANCELLED"],
   SCHEDULED: ["SENDING"],

@@ -50,7 +50,7 @@ export function TargetCategories({
           })}
         </div>
       )}
-      {locked && <p className="mt-2 text-[11px] text-ink-5">Categories are locked once a draft is created.</p>}
+      {locked && <p className="mt-2 text-[11px] text-ink-5">Categories cannot be changed once draft is saved.</p>}
     </div>
   );
 }

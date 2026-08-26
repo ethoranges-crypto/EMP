@@ -8,12 +8,15 @@ export function CampaignsPanel({
   justUpdated,
   onCompose,
   onPay,
+  onView,
 }: {
   campaigns: ProtocolCampaign[];
   /** A campaign id + short message to show briefly after a save/submit, so the collapse back to this list isn't silent (see Composer's onSaved). */
   justUpdated: { campaignId: string; message: string } | null;
   onCompose: (campaignId: string) => void;
   onPay: (campaignId: string) => void;
+  /** Opens the read-only CampaignView — everything past DRAFT/REJECTED, which stay editable via onCompose instead. */
+  onView: (campaignId: string) => void;
 }) {
   if (campaigns.length === 0) return null;
 
@@ -107,6 +110,14 @@ export function CampaignsPanel({
                   className="mt-1 self-start whitespace-nowrap rounded-full bg-pulse-cyan px-4 py-1.5 text-xs font-medium text-void hover:shadow-glow"
                 >
                   {c.status === "APPROVED" ? "Pay" : c.status === "SCHEDULED" ? "Manage schedule" : "View payment"}
+                </button>
+              )}
+              {c.status !== "DRAFT" && c.status !== "REJECTED" && (
+                <button
+                  onClick={() => onView(c.id)}
+                  className="mt-1 self-start whitespace-nowrap rounded-full border border-white/10 px-4 py-1.5 text-xs text-slate-300 hover:border-white/20"
+                >
+                  View
                 </button>
               )}
             </div>

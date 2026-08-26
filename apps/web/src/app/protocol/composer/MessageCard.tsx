@@ -21,10 +21,10 @@ const IMAGE_MAX_MB = (CAMPAIGN_IMAGE_MAX_BYTES / (1024 * 1024)).toFixed(0);
  *
  * Image upload needs an existing campaignId (its own endpoint, POST
  * .../campaigns/:id/image — a file, not a form field that can ride along
- * with a first save) — disabled with an explanatory title until a draft
- * exists, same real constraint the old two-screen flow had (image upload
- * only ever existed on the Compose screen, which only appeared after a
- * draft had already been created).
+ * with a first save) — Composer's uploadImage creates the draft first if
+ * one doesn't exist yet, same as a first "Save draft" click would, so this
+ * control only ever disables while an upload/removal is actually in
+ * flight, not because no draft exists.
  */
 export function MessageCard({
   bodyText,
@@ -35,7 +35,6 @@ export function MessageCard({
   imagePreviewUrl,
   imageBusy,
   imageError,
-  imageDisabled,
   onUploadImage,
   onRemoveImage,
   ctas,
@@ -51,7 +50,6 @@ export function MessageCard({
   imagePreviewUrl: string | null;
   imageBusy: boolean;
   imageError: string | null;
-  imageDisabled: boolean;
   onUploadImage: (file: File) => void;
   onRemoveImage: () => void;
   ctas: CtaDraft[];
@@ -103,9 +101,8 @@ export function MessageCard({
           </div>
         ) : (
           <label
-            title={imageDisabled ? "Save a draft first to attach an image." : undefined}
             className={`flex h-[110px] flex-col items-center justify-center gap-1 rounded-md border border-white/[.1] text-center font-mono text-[10.5px] text-ink-5 ${
-              imageDisabled || imageBusy ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-white/20"
+              imageBusy ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-white/20"
             }`}
             style={{
               backgroundImage:
@@ -117,7 +114,7 @@ export function MessageCard({
               ref={fileInputRef}
               type="file"
               accept={IMAGE_ACCEPT}
-              disabled={imageDisabled || imageBusy}
+              disabled={imageBusy}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) onUploadImage(file);
@@ -128,7 +125,7 @@ export function MessageCard({
           </label>
         )}
         {imageError && <p className="text-[11px] text-pulse-red">{imageError}</p>}
-        {!imagePreviewUrl && !imageDisabled && (
+        {!imagePreviewUrl && (
           <p className="-mt-2 text-[11px] text-ink-5">JPEG, PNG, or WebP — max {IMAGE_MAX_MB}MB.</p>
         )}
 

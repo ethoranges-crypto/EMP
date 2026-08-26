@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@emp/db";
 import { getChain } from "@emp/config";
 import {
+  CampaignNotDeletableError,
   CampaignNotEditableError,
   CampaignNotFoundError,
   CampaignNotOwnedError,
@@ -10,6 +11,8 @@ import {
   MessageTooLongError,
   TooManyCtasError,
   createPrismaComposeStore,
+  createPrismaDeleteCampaignStore,
+  deleteCampaign,
   saveCampaignCompose,
 } from "@emp/core";
 import { UnauthorizedError, requireRole } from "@/lib/session";
@@ -162,6 +165,32 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (err instanceof MessageTooLongError) return NextResponse.json({ error: err.message }, { status: 400 });
     if (err instanceof TooManyCtasError) return NextResponse.json({ error: err.message }, { status: 400 });
     if (err instanceof InvalidScheduledSendAtError) return NextResponse.json({ error: err.message }, { status: 400 });
+    throw err;
+  }
+}
+
+/**
+ * Hard-deletes a DRAFT/REJECTED campaign — nothing paid or sent exists for
+ * either, so unlike cancel (.../cancel, for IN_REVIEW/APPROVED) or
+ * paymentWindowRecovery's cancel-payment (for a failed AWAITING_PAYMENT
+ * attempt), there's no state worth keeping around. deleteCampaign() (in
+ * @emp/core) enforces the DRAFT/REJECTED-only + no-verified-payment gate —
+ * this route only turns its errors into the right status codes.
+ */
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { accountId } = await requireRole("protocol");
+    const { id } = await params;
+
+    const store = createPrismaDeleteCampaignStore(prisma);
+    await deleteCampaign(store, { campaignId: id, protocolId: accountId });
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    if (err instanceof UnauthorizedError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (err instanceof CampaignNotFoundError) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (err instanceof CampaignNotOwnedError) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (err instanceof CampaignNotDeletableError) return NextResponse.json({ error: err.message }, { status: 409 });
     throw err;
   }
 }

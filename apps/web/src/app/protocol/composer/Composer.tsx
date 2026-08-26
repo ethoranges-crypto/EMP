@@ -41,11 +41,14 @@ export function Composer({
   campaignId: initialCampaignId,
   onClose,
   onSaved,
+  onDeleted,
 }: {
   /** null = creating a new campaign; a string = resuming an existing DRAFT/REJECTED one. */
   campaignId: string | null;
   onClose: () => void;
   onSaved: (campaignId: string, message: string) => void;
+  /** Fires after a successful delete — the campaign list should refetch and this screen should close. */
+  onDeleted: (message: string) => void;
 }) {
   const [campaignId, setCampaignId] = useState(initialCampaignId);
   const [detail, setDetail] = useState<CampaignDetail | null>(null);
@@ -67,6 +70,8 @@ export function Composer({
   const [imageError, setImageError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const categoriesLocked = campaignId !== null;
 
@@ -196,20 +201,39 @@ export function Composer({
     setCtas((prev) => prev.filter((_, i) => i !== index));
   }
 
+  // Image upload needs a real campaignId (its own endpoint, a file rather
+  // than a field that can ride along with performSave) — rather than
+  // disabling the control until one exists (which reads as broken), this
+  // creates the draft first if needed, same as the first "Save draft"
+  // click would, then proceeds with the upload against the id it gets
+  // back. Requires a title + category first since ensureDraftCreated does;
+  // checked here too so the message is about the image action specifically.
   async function uploadImage(file: File) {
-    if (!campaignId) return;
     setImageError(null);
+    if (!hasTitle) {
+      setImageError("Add a campaign title first.");
+      return;
+    }
+    if (!hasCategories) {
+      setImageError("Pick at least one target category first.");
+      return;
+    }
     setImageBusy(true);
+    const id = await ensureDraftCreated();
+    if (!id) {
+      setImageBusy(false);
+      return;
+    }
     const formData = new FormData();
     formData.append("image", file);
-    const res = await fetch(`/api/protocol/campaigns/${campaignId}/image`, { method: "POST", body: formData });
+    const res = await fetch(`/api/protocol/campaigns/${id}/image`, { method: "POST", body: formData });
     setImageBusy(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       setImageError(data.error ?? "Could not upload image.");
       return;
     }
-    setImagePreviewUrl(`/api/protocol/campaigns/${campaignId}/image?t=${Date.now()}`);
+    setImagePreviewUrl(`/api/protocol/campaigns/${id}/image?t=${Date.now()}`);
   }
 
   async function removeImage() {
@@ -290,6 +314,23 @@ export function Composer({
     onSaved(id, "Submitted for review.");
   }
 
+  // Only meaningful once a draft actually exists server-side — an
+  // unsaved-so-far new campaign has nothing to delete yet; closing (✕)
+  // already discards it with no trace.
+  async function deleteDraft() {
+    if (!campaignId) return;
+    setDeleting(true);
+    setError(null);
+    const res = await fetch(`/api/protocol/campaigns/${campaignId}`, { method: "DELETE" });
+    setDeleting(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setError(data.error ?? "Could not delete this campaign.");
+      return;
+    }
+    onDeleted("Draft deleted.");
+  }
+
   const savedSecondsAgo = lastSavedAt !== null ? Math.max(0, Math.round((now - lastSavedAt) / 1000)) : null;
 
   const steps: Step[] = [
@@ -332,22 +373,44 @@ export function Composer({
       <header className="flex h-[57px] shrink-0 items-center gap-4 border-b border-white/[.07] px-[26px]">
         <div className="font-mono text-[13px] font-bold tracking-[.06em]">EMP</div>
         <div className="h-4 w-px bg-white/[.12]" />
-        {categoriesLocked ? (
-          <div className="text-[13px] text-ink-2">{title}</div>
-        ) : (
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            maxLength={CAMPAIGN_TITLE_MAX_LENGTH}
-            placeholder="New campaign"
-            className="min-w-0 max-w-[280px] flex-1 bg-transparent text-[13px] text-ink-1 outline-none placeholder:text-ink-4"
-          />
-        )}
+        {/* The editable title field lives below, above "01 · TARGET
+            CATEGORIES", with its own clear label — this is just a
+            wayfinding readout, not a second place to edit it. */}
+        <div className="min-w-0 max-w-[280px] flex-1 truncate text-[13px] text-ink-2">
+          {title.trim().length > 0 ? title : "New campaign"}
+        </div>
         <div className="whitespace-nowrap font-mono text-[10.5px] text-ink-5">
           {detail?.status === "REJECTED" ? "REJECTED · resubmit to re-review" : "DRAFT"}
           {savedSecondsAgo !== null && ` · saved ${savedSecondsAgo}s ago`}
         </div>
         <div className="ml-auto flex items-center gap-[10px]">
+          {campaignId && !confirmingDelete && (
+            <button
+              onClick={() => setConfirmingDelete(true)}
+              disabled={deleting}
+              className="rounded-md border border-white/[.12] px-[13px] py-2 text-[12.5px] text-ink-3 transition hover:border-pulse-red/50 hover:text-pulse-red"
+            >
+              Delete
+            </button>
+          )}
+          {campaignId && confirmingDelete && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11.5px] text-ink-4">Delete for good?</span>
+              <button
+                onClick={() => void deleteDraft()}
+                disabled={deleting}
+                className="rounded-md bg-pulse-red px-[13px] py-2 text-[12.5px] font-semibold text-white transition disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : "Yes, delete"}
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                className="rounded-md border border-white/[.12] px-[13px] py-2 text-[12.5px] text-ink-2 hover:border-white/25"
+              >
+                Never mind
+              </button>
+            </div>
+          )}
           <button
             onClick={() => void save()}
             disabled={saving || submitting || !canSave}
@@ -380,6 +443,23 @@ export function Composer({
             </div>
           )}
 
+          <div>
+            <label className="mb-[10px] block font-mono text-[9.5px] font-medium tracking-[.12em] text-ink-5">
+              CAMPAIGN TITLE
+            </label>
+            {categoriesLocked ? (
+              <div className="text-[13px] text-ink-1">{title}</div>
+            ) : (
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={CAMPAIGN_TITLE_MAX_LENGTH}
+                placeholder="e.g. Perps v3 launch"
+                className="w-full rounded-md border border-white/[.14] bg-void px-3 py-2 text-[13px] text-ink-1 outline-none focus:border-white/25"
+              />
+            )}
+          </div>
+
           <TargetCategories
             categories={categories}
             selectedIds={selectedCategoryIds}
@@ -396,7 +476,6 @@ export function Composer({
             imagePreviewUrl={imagePreviewUrl}
             imageBusy={imageBusy}
             imageError={imageError}
-            imageDisabled={!campaignId}
             onUploadImage={(file) => void uploadImage(file)}
             onRemoveImage={() => void removeImage()}
             ctas={ctas}

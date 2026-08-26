@@ -6,6 +6,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { ApplicationPanel } from "./ApplicationPanel";
 import { CampaignsPanel } from "./CampaignsPanel";
 import { Composer } from "./composer/Composer";
+import { CampaignView } from "./campaignview/CampaignView";
 import { PaymentPanel } from "./PaymentPanel";
 import { OnboardingGate } from "./gate/OnboardingGate";
 import { useResetOnIdentityChange } from "@/lib/useResetOnIdentityChange";
@@ -22,7 +23,9 @@ export default function ProtocolJourneyPage() {
   // { campaignId: string } = resuming an existing DRAFT/REJECTED one.
   const [composerOpen, setComposerOpen] = useState<{ campaignId: string | null } | null>(null);
   const [payingCampaignId, setPayingCampaignId] = useState<string | null>(null);
+  const [viewingCampaignId, setViewingCampaignId] = useState<string | null>(null);
   const [justUpdated, setJustUpdated] = useState<{ campaignId: string; message: string } | null>(null);
+  const [removedMessage, setRemovedMessage] = useState<string | null>(null);
 
   const fetchCampaigns = useCallback(async () => {
     const res = await fetch("/api/protocol/campaigns");
@@ -87,11 +90,34 @@ export default function ProtocolJourneyPage() {
     return () => clearTimeout(id);
   }, [justUpdated]);
 
+  // Same auto-clear for the delete/cancel confirmation.
+  useEffect(() => {
+    if (!removedMessage) return;
+    const id = setTimeout(() => setRemovedMessage(null), 4000);
+    return () => clearTimeout(id);
+  }, [removedMessage]);
+
   function handlePanelSaved(campaignId: string, message: string) {
     setComposerOpen(null);
     setPayingCampaignId(null);
+    setViewingCampaignId(null);
     setJustUpdated({ campaignId, message });
     void fetchCampaigns();
+  }
+
+  // Delete/cancel leave no campaign to highlight in the list — same
+  // refetch-and-close as handlePanelSaved, minus the campaignId a
+  // just-saved row would have.
+  function handleCampaignRemoved(message: string) {
+    setComposerOpen(null);
+    setPayingCampaignId(null);
+    setViewingCampaignId(null);
+    setJustUpdated(null);
+    void fetchCampaigns();
+    // A brief standalone confirmation, same shape as justUpdated but with
+    // no campaignId (the row it referred to is gone) — shown once, then
+    // cleared by the same timeout effect.
+    setRemovedMessage(message);
   }
 
   async function handleSignOut() {
@@ -113,7 +139,9 @@ export default function ProtocolJourneyPage() {
     setCampaigns([]);
     setComposerOpen(null);
     setPayingCampaignId(null);
+    setViewingCampaignId(null);
     setJustUpdated(null);
+    setRemovedMessage(null);
   }, []);
   useResetOnIdentityChange(me?.wallet, resetIdentity);
 
@@ -144,6 +172,23 @@ export default function ProtocolJourneyPage() {
         campaignId={composerOpen.campaignId}
         onClose={() => setComposerOpen(null)}
         onSaved={(campaignId, message) => handlePanelSaved(campaignId, message)}
+        onDeleted={(message) => handleCampaignRemoved(message)}
+      />
+    );
+  }
+
+  // Read-only view for anything past DRAFT/REJECTED (IN_REVIEW and later)
+  // — same full-viewport treatment as the composer/gate above.
+  if (viewingCampaignId) {
+    return (
+      <CampaignView
+        campaignId={viewingCampaignId}
+        onClose={() => setViewingCampaignId(null)}
+        onChanged={(message) => handleCampaignRemoved(message)}
+        onOpenPayment={(id) => {
+          setViewingCampaignId(null);
+          setPayingCampaignId(id);
+        }}
       />
     );
   }
@@ -181,6 +226,7 @@ export default function ProtocolJourneyPage() {
               >
                 View campaign history &amp; analytics →
               </Link>
+              {removedMessage && <p className="text-center text-xs text-pulse-cyan">{removedMessage}</p>}
               <CampaignsPanel
                 campaigns={campaigns}
                 justUpdated={justUpdated}
@@ -191,6 +237,11 @@ export default function ProtocolJourneyPage() {
                 onPay={(id) => {
                   setComposerOpen(null);
                   setPayingCampaignId(id);
+                }}
+                onView={(id) => {
+                  setComposerOpen(null);
+                  setPayingCampaignId(null);
+                  setViewingCampaignId(id);
                 }}
               />
               {payingCampaignId && (

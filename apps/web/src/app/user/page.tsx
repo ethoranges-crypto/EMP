@@ -7,6 +7,7 @@ import { SignInPanel } from "./SignInPanel";
 import { InterestsPanel } from "./InterestsPanel";
 import { TelegramPanel } from "./TelegramPanel";
 import { MessageableBadge } from "./MessageableBadge";
+import { useResetOnIdentityChange } from "@/lib/useResetOnIdentityChange";
 import type { TelegramLinkStatus, UserMe } from "./types";
 
 type MeStatus = "loading" | "signed-out" | "signed-in" | "error";
@@ -67,6 +68,22 @@ export default function UserJourneyPage() {
     setMe(null);
     setMeStatus("signed-out");
   }
+
+  // Switching to a different wallet, or disconnecting, must never leave the
+  // previous wallet's interests/Telegram-link/messageable state on screen —
+  // see useResetOnIdentityChange's own doc comment (the same fix already
+  // applied on the protocol side). meStatus going to "signed-out" unmounts
+  // the whole signed-in block below, including InterestsPanel, which owns
+  // its own fetch-on-mount state — so a fresh sign-in with the new wallet
+  // remounts it and fetches that wallet's own interests fresh, never the
+  // previous wallet's.
+  const resetIdentity = useCallback(() => {
+    setMe(null);
+    setMeStatus("signed-out");
+    setJustLinked(false);
+    prevTelegramLinkStatus.current = undefined;
+  }, []);
+  useResetOnIdentityChange(me?.wallet, resetIdentity);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-8 px-6 py-16">

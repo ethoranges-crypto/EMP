@@ -5,13 +5,16 @@ import { useAccount } from "wagmi";
 import { hasIdentityMismatch } from "./identityChange.js";
 
 /**
- * Keeps a protocol-facing page's local state honest about which wallet is
+ * Keeps a signed-in page's local state honest about which wallet is
  * actually connected. The EMP session cookie is independent of wagmi's
  * client-side wallet connection — it persists across a wallet switch or a
  * disconnect until something explicitly signs it out — so without this, a
  * page that fetched data once on mount just keeps showing it: switching to
- * a different wallet still shows the previous wallet's campaigns, and
- * disconnecting doesn't return to a clean state either.
+ * a different wallet still shows the previous wallet's data (campaigns on
+ * the protocol side; interests/Telegram-link status on the user side), and
+ * disconnecting doesn't return to a clean state either. Used by both the
+ * /user and /protocol journeys — the mismatch it detects (session wallet
+ * vs. wagmi's live connection) is the same regardless of role.
  *
  * Pass the session's own wallet (`me?.wallet`, undefined if there's no
  * session) — on every render where wagmi's settled connection state no

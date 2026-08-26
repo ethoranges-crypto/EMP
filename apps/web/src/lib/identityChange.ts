@@ -12,8 +12,9 @@ export interface IdentityCheckParams {
 /**
  * The pure decision behind useResetOnIdentityChange: does the wallet
  * actually connected in the browser right now match the wallet the EMP
- * session claims to be signed in as? If not, the session is stale and a
- * protocol-facing page must reset rather than keep showing it.
+ * session claims to be signed in as? If not, the session is stale and the
+ * page (user or protocol side — this check is role-agnostic) must reset
+ * rather than keep showing it.
  *
  * Comparing against the session's own wallet — not just "did wagmi's
  * address change since we started watching" — is what closes the full gap:

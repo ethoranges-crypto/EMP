@@ -3,7 +3,7 @@ import { hasIdentityMismatch, type WalletConnectionStatus } from "./identityChan
 
 const CONNECTING: WalletConnectionStatus[] = ["connecting", "reconnecting"];
 
-describe("hasIdentityMismatch — the bug: switching/disconnecting wallets left the previous session's campaigns on screen", () => {
+describe("hasIdentityMismatch — the bug: switching/disconnecting wallets left the previous session's data on screen", () => {
   it("never a mismatch while wagmi is still settling the connection, even with an active session", () => {
     for (const walletStatus of CONNECTING) {
       expect(hasIdentityMismatch({ walletStatus, connectedAddress: undefined, sessionWallet: "0xabc" })).toBe(false);
@@ -37,5 +37,15 @@ describe("hasIdentityMismatch — the bug: switching/disconnecting wallets left 
     // catches the case where the mismatch existed from the very first
     // settled render, which a naive "previous vs next" diff would miss.
     expect(hasIdentityMismatch({ walletStatus: "connected", connectedAddress: "0xnewwallet", sessionWallet: "0xoldwallet" })).toBe(true);
+  });
+
+  it("IS a mismatch on /user too, including after a hard refresh — connecting a new wallet must never keep showing the previous wallet's interests/Telegram-link status", () => {
+    // /user/page.tsx wires useResetOnIdentityChange the same way the
+    // protocol side does; this is the exact scenario from that bug report —
+    // a hard refresh re-mounts the page and re-fetches /api/user/me with
+    // whatever session cookie still exists, but that's still "already
+    // stale at first settled render" from this check's point of view, and
+    // must be caught the same way regardless of which side's page it is.
+    expect(hasIdentityMismatch({ walletStatus: "connected", connectedAddress: "0xnewuserwallet", sessionWallet: "0xolduserwallet" })).toBe(true);
   });
 });

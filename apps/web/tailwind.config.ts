@@ -58,9 +58,17 @@ export default {
           "0%": { transform: "scale(.6)", opacity: "0.55" },
           "100%": { transform: "scale(1.9)", opacity: "0" },
         },
+        // A small "this is live" indicator dot — distinct job from empPulse
+        // (an expanding ring broadcasting outward): this just breathes in
+        // place, for a status light rather than a signal source.
+        empBreathe: {
+          "0%, 100%": { opacity: "0.35" },
+          "50%": { opacity: "1" },
+        },
       },
       animation: {
         empPulse: "empPulse 2.6s ease-out infinite",
+        empBreathe: "empBreathe 2.2s ease-in-out infinite",
       },
     },
   },

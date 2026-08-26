@@ -1,28 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useAccount } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { SignInPanel } from "./SignInPanel";
-import { InterestsPanel } from "./InterestsPanel";
-import { TelegramPanel } from "./TelegramPanel";
-import { MessageableBadge } from "./MessageableBadge";
+import { useCallback, useEffect, useState } from "react";
 import { useResetOnIdentityChange } from "@/lib/useResetOnIdentityChange";
-import type { TelegramLinkStatus, UserMe } from "./types";
+import { ConnectState } from "./ConnectState";
+import { InterestsState } from "./InterestsState";
+import { TelegramState } from "./TelegramState";
+import { HomeState } from "./HomeState";
+import type { UserMe } from "./types";
 
 type MeStatus = "loading" | "signed-out" | "signed-in" | "error";
 
+/**
+ * The Claude Design handoff's /user flow, in the shared 1b tokens — a
+ * sequential onboarding (connect -> interests -> telegram) followed by a
+ * "home" state (messageable, or paused if opted out), matching the design's
+ * five states. Stage is derived fresh from real data on every render (same
+ * approach as protocol's OnboardingGate), not a separate "onboarding
+ * complete" flag: a returning, fully-linked user always lands on home
+ * directly, and a user who unlinks Telegram naturally falls back to the
+ * telegram step next time hasVerifiedLink is false.
+ *
+ * `editingInterests` is the one bit of state not derived from the API — set
+ * only by HomeState's "edit" link, so a fully onboarded user can revisit
+ * the interests step without it looking like they're back in onboarding
+ * (no step row, "Save" instead of "Continue", returns to home instead of
+ * advancing to Telegram).
+ */
 export default function UserJourneyPage() {
-  const { isConnected } = useAccount();
   const [me, setMe] = useState<UserMe | null>(null);
   const [meStatus, setMeStatus] = useState<MeStatus>("loading");
-  // True only for the poll that catches pending -> linked live (apps/bot
-  // confirmed the code while this tab was open) — not for a returning
-  // visit that's already linked. That's what makes the big TelegramPanel
-  // success state a "you just did this" confirmation rather than noise
-  // shown on every page load.
-  const [justLinked, setJustLinked] = useState(false);
-  const prevTelegramLinkStatus = useRef<TelegramLinkStatus | undefined>(undefined);
+  const [editingInterests, setEditingInterests] = useState(false);
 
   const fetchMe = useCallback(async () => {
     try {
@@ -55,14 +62,6 @@ export default function UserJourneyPage() {
     return () => clearInterval(id);
   }, [me?.telegramLinkStatus, fetchMe]);
 
-  useEffect(() => {
-    if (!me) return;
-    if (prevTelegramLinkStatus.current === "pending" && me.telegramLinkStatus === "linked") {
-      setJustLinked(true);
-    }
-    prevTelegramLinkStatus.current = me.telegramLinkStatus;
-  }, [me]);
-
   async function handleSignOut() {
     await fetch("/api/auth/signout", { method: "POST" });
     setMe(null);
@@ -70,63 +69,46 @@ export default function UserJourneyPage() {
   }
 
   // Switching to a different wallet, or disconnecting, must never leave the
-  // previous wallet's interests/Telegram-link/messageable state on screen —
-  // see useResetOnIdentityChange's own doc comment (the same fix already
-  // applied on the protocol side). meStatus going to "signed-out" unmounts
-  // the whole signed-in block below, including InterestsPanel, which owns
-  // its own fetch-on-mount state — so a fresh sign-in with the new wallet
-  // remounts it and fetches that wallet's own interests fresh, never the
-  // previous wallet's.
+  // previous wallet's interests/Telegram-link/messageable/paused state on
+  // screen — same fix as /protocol.
   const resetIdentity = useCallback(() => {
     setMe(null);
     setMeStatus("signed-out");
-    setJustLinked(false);
-    prevTelegramLinkStatus.current = undefined;
+    setEditingInterests(false);
   }, []);
   useResetOnIdentityChange(me?.wallet, resetIdentity);
 
-  return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-8 px-6 py-16">
-      <header className="flex flex-col items-center gap-2 text-center">
-        <div className="font-mono text-[13px] font-bold tracking-[.06em] text-ink-4">EMP</div>
-        <h1 className="bg-gradient-to-r from-pulse-cyan to-pulse-violet bg-clip-text text-[28px] font-semibold leading-[1.15] tracking-[-.01em] text-transparent">
-          Get on the signal
-        </h1>
-        <p className="max-w-[420px] text-[13px] text-ink-4">
-          Connect a wallet, pick what you want to hear about, and link Telegram to start receiving
-          curated DeFi opportunities.
-        </p>
-      </header>
+  if (meStatus === "loading") {
+    return (
+      <main className="flex h-screen items-center justify-center bg-void">
+        <p className="text-[13px] text-ink-4">Loading…</p>
+      </main>
+    );
+  }
 
-      <div className="flex justify-center">
-        <ConnectButton />
-      </div>
+  if (meStatus === "signed-out" || !me) {
+    return <ConnectState onSignedIn={() => void fetchMe()} />;
+  }
 
-      {isConnected && meStatus === "loading" && (
-        <p className="text-center text-[12.5px] text-ink-4">Checking session…</p>
-      )}
+  if (meStatus === "error") {
+    return (
+      <main className="flex h-screen items-center justify-center bg-void px-6 text-center">
+        <p className="text-[13px] text-pulse-red">Something went wrong loading your account. Try refreshing the page.</p>
+      </main>
+    );
+  }
 
-      {isConnected && meStatus === "signed-out" && <SignInPanel onSignedIn={() => void fetchMe()} />}
+  if (editingInterests) {
+    return <InterestsState mode="edit" onDone={() => { setEditingInterests(false); void fetchMe(); }} />;
+  }
 
-      {meStatus === "error" && (
-        <p className="text-center text-[12.5px] text-pulse-red">
-          Something went wrong loading your account. Try refreshing the page.
-        </p>
-      )}
+  if (me.telegramLinkStatus === "linked") {
+    return <HomeState me={me} onChange={() => void fetchMe()} onEditInterests={() => setEditingInterests(true)} onSignOut={() => void handleSignOut()} />;
+  }
 
-      {meStatus === "signed-in" && me && (
-        <div className="flex flex-col gap-6">
-          <MessageableBadge messageable={me.messageable} telegramLinkStatus={me.telegramLinkStatus} />
-          <InterestsPanel />
-          <TelegramPanel me={me} onChange={() => void fetchMe()} justLinked={justLinked} />
-          <button
-            onClick={handleSignOut}
-            className="self-center text-[11.5px] text-ink-5 underline underline-offset-4 transition hover:text-ink-3"
-          >
-            Sign out
-          </button>
-        </div>
-      )}
-    </main>
-  );
+  if (me.interestCategoryIds.length === 0) {
+    return <InterestsState mode="onboarding" onDone={() => void fetchMe()} />;
+  }
+
+  return <TelegramState me={me} onChange={() => void fetchMe()} />;
 }

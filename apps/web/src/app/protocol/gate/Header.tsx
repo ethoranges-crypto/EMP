@@ -1,7 +1,7 @@
 "use client";
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { truncateAddress } from "../address";
+import { truncateAddress } from "@/lib/address";
 
 /**
  * Same top-bar shape as the dashboard's header, minus the actions a

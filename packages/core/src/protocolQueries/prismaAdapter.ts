@@ -14,6 +14,10 @@ export function createPrismaProtocolQueryStore(prisma: PrismaClient): ProtocolQu
       return prisma.user.count({
         where: {
           telegramLinks: { some: { status: "VERIFIED" } },
+          // Paused is a self-service opt-out (SPEC "Signal paused") — a
+          // paused user must never count toward an audience a protocol
+          // pays for, even though their Telegram link is still verified.
+          paused: false,
           ...(filter.includeAll
             ? {}
             : { interests: { some: { categoryId: { in: filter.categoryIds } } } }),

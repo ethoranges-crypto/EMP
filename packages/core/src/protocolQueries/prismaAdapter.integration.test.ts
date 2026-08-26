@@ -200,6 +200,21 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
     assertNoLeakedValues(result, [...SECRETS, decoyWallet], "$.countMessageableUsers");
   });
 
+  it("countMessageableUsers: a paused user is excluded even with a verified link and matching interest — the self-service opt-out", async () => {
+    const pausedWallet = "0xpauseduser0000000000000000000000000000";
+    const paused = await prisma.user.create({ data: { primaryWallet: pausedWallet, accountType: "EOA", paused: true } });
+    await prisma.telegramLink.create({
+      data: { userId: paused.id, chatId: "444555666", status: "VERIFIED", verifiedAt: new Date() },
+    });
+    await prisma.userInterest.create({ data: { userId: paused.id, categoryId } });
+
+    const store = createPrismaProtocolQueryStore(prisma);
+    const result = await store.countMessageableUsers({ categoryIds: [categoryId], includeAll: false });
+    expect(result).toBe(1); // still just REAL_WALLET's user — the paused one doesn't count
+    assertNoForbiddenKeys(result, "$.countMessageableUsers");
+    assertNoLeakedValues(result, [...SECRETS, pausedWallet], "$.countMessageableUsers");
+  });
+
   it("getCampaignSnapshotCount: clean and correct", async () => {
     const store = createPrismaProtocolQueryStore(prisma);
     const result = await store.getCampaignSnapshotCount(campaignId);

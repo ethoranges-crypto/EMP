@@ -13,6 +13,12 @@ export function createPrismaSnapshotStore(prisma: PrismaClient): SnapshotPort {
       const users = await prisma.user.findMany({
         where: {
           telegramLinks: { some: { status: "VERIFIED" } },
+          // Same paused exclusion as countMessageableUsers — this is the
+          // function that actually decides who gets a campaign_recipients
+          // row (and gets messaged), so a paused user opting out here is
+          // the real, functional part of that guarantee, not just the
+          // count shown to protocols beforehand.
+          paused: false,
           ...(filter.includeAll
             ? {}
             : { interests: { some: { categoryId: { in: filter.categoryIds } } } }),

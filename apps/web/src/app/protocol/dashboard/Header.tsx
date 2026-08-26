@@ -1,6 +1,6 @@
 "use client";
 
-import { truncateAddress } from "../address";
+import { truncateAddress } from "@/lib/address";
 import type { ProtocolMe } from "../types";
 
 /**

@@ -100,6 +100,13 @@ model User {
   accountType   AccountType
   safeAddress   String?
   createdAt     DateTime    @default(now())
+  /// Self-service opt-out (SPEC's "Signal paused" state): true excludes this
+  /// user from every audience count and campaign snapshot, immediately, even
+  /// though their Telegram link and interests are untouched — see
+  /// countMessageableUsers/listMessageableChatIds, the only two places that
+  /// decide who's messageable. Independent of TelegramLink status; a paused
+  /// user can still be "linked", just not counted while paused.
+  paused        Boolean     @default(false)
 
   interests     UserInterest[]
   telegramLinks TelegramLink[]

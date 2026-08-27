@@ -33,6 +33,14 @@ function useCountdown(expiresAt: string | undefined): string | null {
  * shell, since all of them are real states this screen must show, not just
  * the happy path.
  *
+ * The actual binding mechanism is the deep link (t.me/<bot>?start=<code>) —
+ * apps/bot's /start handler (registerStartHandler) only ever reads the code
+ * from the /start command's payload, never from a plain-text message, so
+ * "paste the code as a message" (an earlier version of this screen) can
+ * never bind anything. The deep-link button is the one real action; the
+ * code display alongside it is read-only reference, not an instruction to
+ * paste it anywhere.
+ *
  * Flagged deviation: the mockup formats its example code as "EMP-7K4Q-92XD"
  * — the real code (createLinkRequest, packages/core) is a plain 12-char
  * base64url string with no EMP-prefix or dash segments, shown as-is rather
@@ -65,8 +73,8 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
         <div className="flex flex-col px-10 pt-14">
           <h2 className="text-[38px] font-medium leading-none tracking-[-.025em]">Link Telegram</h2>
           <p className="mt-3.5 max-w-[400px] text-[15px] leading-[1.6] text-ink-3">
-            Messages arrive in Telegram. Open the EMP bot and paste this code — we store only the chat,
-            never your handle.
+            Messages arrive in Telegram. One tap opens the bot with your code already attached — we store
+            only the chat, never your handle.
           </p>
 
           {me.telegramLinkStatus !== "not_configured" && (
@@ -76,7 +84,7 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
                   1
                 </span>
                 <div className="flex flex-col gap-1">
-                  <span className="text-[15px]">Open the bot</span>
+                  <span className="text-[15px]">Open the bot &amp; link (right)</span>
                   <span className="font-mono text-[12.5px] text-pulse-cyan">{botHandle ? `t.me/${botHandle}` : "—"}</span>
                 </div>
               </div>
@@ -86,9 +94,9 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
                 </span>
                 <div className="flex flex-col gap-1">
                   <span className="text-[15px]">
-                    Send <span className="font-mono text-ink-3">/start</span> and paste your code
+                    Press <span className="font-mono text-ink-3">Start</span> in Telegram
                   </span>
-                  <span className="text-[12.5px] text-ink-3">The bot replies the moment it matches.</span>
+                  <span className="text-[12.5px] text-ink-3">Your code is already attached — it binds immediately.</span>
                 </div>
               </div>
               <div className="flex items-start gap-4">
@@ -153,16 +161,22 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
             </>
           )}
 
-          {me.telegramLinkStatus === "pending" && code && (
+          {me.telegramLinkStatus === "pending" && code && me.deepLink && (
             <>
-              <span className="mb-5 font-mono text-[10px] tracking-[.22em] text-ink-5">YOUR ONE-TIME CODE</span>
-              <div
-                className="rounded-md border border-pulse-cyan/40 bg-pulse-cyan/5 px-8 py-6"
-                style={{ boxShadow: "0 0 50px rgba(53,230,242,.14)" }}
+              <span className="mb-5 font-mono text-[10px] tracking-[.22em] text-ink-5">YOUR LINK IS READY</span>
+              <a
+                href={me.deepLink}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-md bg-pulse-cyan px-8 py-4 text-center text-[15px] font-semibold text-onaccent-cyan transition hover:shadow-glow"
+                style={{ boxShadow: "0 0 40px rgba(53,230,242,.28)" }}
               >
-                <span className="break-all font-mono text-[26px] font-medium tracking-[.1em] text-pulse-cyan">{code}</span>
+                Open bot &amp; link
+              </a>
+              <div className="mt-5 rounded-md border border-white/[.1] bg-surface px-6 py-3">
+                <span className="break-all font-mono text-[15px] tracking-[.06em] text-ink-3">{code}</span>
               </div>
-              <div className="mt-4 flex items-center gap-3">
+              <div className="mt-3 flex items-center gap-3">
                 <button
                   onClick={() => {
                     void navigator.clipboard.writeText(code);
@@ -187,7 +201,7 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
                     style={{ animationDelay: ".6s" }}
                   />
                 </div>
-                <span className="font-mono text-[11.5px] tracking-[.08em] text-ink-3">listening for your message…</span>
+                <span className="font-mono text-[11.5px] tracking-[.08em] text-ink-3">waiting for confirmation…</span>
               </div>
               <button
                 onClick={() => void requestLink()}

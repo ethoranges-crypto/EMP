@@ -36,12 +36,9 @@ function StatColumn({
  *    pulled from getChains() (only chains with a configured RPC — SPEC
  *    "config-driven chains") and PAYMENT_TOKENS. ETH is dropped: CLAUDE.md
  *    is explicit that ETH isn't an accepted payment token.
- *  - "how it works / pricing / docs" are inert labels, matching the
- *    mockup's own markup (plain non-interactive text, no hover state,
- *    no href) — there are no such pages yet, so these aren't rendered as
- *    links that would go nowhere.
- *  - "connect wallet" in the header links to /user (where connecting
- *    actually happens) rather than being decorative chrome.
+ *  - Header nav ("how it works" / "pricing" / "docs" / "connect wallet")
+ *    removed entirely — they were inert placeholders with no destination;
+ *    entry is via the "I'm a user" / "I'm a protocol" cards below.
  *  - Dropped the mockup's rotating dashed ring with orbiting coloured
  *    dots around the hero orb — pure ornament with no real state behind
  *    the three dot colours, and it would've needed a new bespoke
@@ -82,17 +79,6 @@ export default function HomePage() {
               end-user messaging protocol
             </span>
           </div>
-          <div className="flex items-center gap-8">
-            <span className="font-mono text-[11.5px] tracking-[.1em] text-ink-3">how it works</span>
-            <span className="font-mono text-[11.5px] tracking-[.1em] text-ink-3">pricing</span>
-            <span className="font-mono text-[11.5px] tracking-[.1em] text-ink-3">docs</span>
-            <Link
-              href="/user"
-              className="rounded-md border border-pulse-cyan/45 px-[18px] py-2.5 font-mono text-[11.5px] tracking-[.09em] text-pulse-cyan transition hover:border-pulse-cyan hover:bg-pulse-cyan/10"
-            >
-              connect wallet
-            </Link>
-          </div>
         </header>
 
         <div className="grid flex-1 grid-cols-[634px_1fr] items-center gap-8 px-12">
@@ -111,8 +97,9 @@ export default function HomePage() {
               wallets that <span className="text-pulse-cyan">asked</span>.
             </h1>
             <p className="mt-6 max-w-[472px] text-[16.5px] leading-[1.6] text-ink-3">
-              Users link a wallet and Telegram, then pick what they want to hear about. Protocols pay
-              in crypto to pulse the slice that matches — and never learn who they are.
+              Users link a wallet and Telegram, then pick what they want to hear about with total
+              privacy. Protocols create campaigns to target audiences without receiving user
+              information.
             </p>
 
             <div className="mt-8 grid max-w-[538px] grid-cols-2 gap-[18px]">
@@ -138,7 +125,7 @@ export default function HomePage() {
                 <span className="font-mono text-[10px] tracking-[.2em] text-pulse-violet">TRANSMIT</span>
                 <span className="text-[21px] font-medium tracking-[-.01em]">I&apos;m a protocol</span>
                 <span className="text-[13.5px] leading-[1.55] text-ink-3">
-                  Target by interest, see the audience count, pay per user reached. Aggregates only.
+                  Target by interest, send custom messages &amp; track CTR.
                 </span>
                 <span className="mt-1.5 flex items-center gap-2 font-mono text-[11.5px] tracking-[.08em] text-pulse-violet">
                   apply <span className="text-[13px]">→</span>
@@ -172,12 +159,9 @@ export default function HomePage() {
                 <span className="font-mono text-[12px] tracking-[.24em] text-pulse-cyan">EMP</span>
               </div>
             </div>
-            <div className="absolute bottom-8 right-0 flex flex-col items-end gap-1.5">
-              <span className="font-mono text-[10px] tracking-[.16em] text-ink-5">
-                ONE PULSE → MATCHING WALLETS ONLY
-              </span>
-              <span className="font-mono text-[10px] tracking-[.16em] text-ink-6">
-                telegram · queued · throttled · tracked
+            <div className="absolute bottom-8 right-0 flex max-w-[280px] flex-col items-end gap-1.5">
+              <span className="text-right font-mono text-[10px] leading-[1.5] tracking-[.16em] text-ink-5">
+                All protocols &amp; outbound messages pre-approved to avoid spam or malicious activity.
               </span>
             </div>
           </div>

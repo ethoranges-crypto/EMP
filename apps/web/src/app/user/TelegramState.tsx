@@ -65,10 +65,10 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
 
       <div className="grid flex-1 grid-cols-2 overflow-y-auto">
         <div className="flex flex-col px-10 pt-14">
-          <h2 className="text-[38px] font-medium leading-none tracking-[-.025em]">Link Telegram</h2>
+          <h2 className="text-[38px] font-medium leading-none tracking-[-.025em]">Link your Telegram</h2>
           <p className="mt-3.5 max-w-[400px] text-[15px] leading-[1.6] text-ink-3">
-            Messages arrive in Telegram. One tap opens the bot with your code already attached — we store
-            only the chat, never your handle.
+            Receive protocol messages via our EMP:ProtocolOpportunity bot. None of your information is ever
+            shared with any third party.
           </p>
 
           {me.telegramLinkStatus !== "not_configured" && (
@@ -78,7 +78,7 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
                   1
                 </span>
                 <div className="flex flex-col gap-1">
-                  <span className="text-[15px]">Open the bot &amp; link (right)</span>
+                  <span className="text-[15px]">Click the button to link your Telegram</span>
                   <span className="font-mono text-[12.5px] text-pulse-cyan">{botHandle ? `t.me/${botHandle}` : "—"}</span>
                 </div>
               </div>
@@ -87,9 +87,7 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
                   2
                 </span>
                 <div className="flex flex-col gap-1">
-                  <span className="text-[15px]">
-                    Press <span className="font-mono text-ink-3">Start</span> in Telegram
-                  </span>
+                  <span className="text-[15px]">Click the Open Telegram button</span>
                   <span className="text-[12.5px] text-ink-3">Your code is already attached — it binds immediately.</span>
                 </div>
               </div>
@@ -124,14 +122,14 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
           {me.telegramLinkStatus === "none" && (
             <>
               <p className="mb-6 max-w-[320px] text-center text-[13px] text-ink-3">
-                Generate a one-time code to connect via the EMP bot.
+                Click below to link your Telegram.
               </p>
               <button
                 onClick={() => void requestLink()}
                 disabled={requesting}
                 className="rounded-md bg-pulse-cyan px-6 py-3 text-[13.5px] font-semibold text-onaccent-cyan transition hover:shadow-glow disabled:opacity-50"
               >
-                {requesting ? "Generating…" : "Generate my code"}
+                {requesting ? "Generating…" : "Link my Telegram"}
               </button>
             </>
           )}
@@ -165,7 +163,7 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
                 className="rounded-md bg-pulse-cyan px-8 py-4 text-center text-[15px] font-semibold text-onaccent-cyan transition hover:shadow-glow"
                 style={{ boxShadow: "0 0 40px rgba(53,230,242,.28)" }}
               >
-                Open bot &amp; link
+                Open Telegram
               </a>
               {countdown && (
                 <span className="mt-3 font-mono text-[11px] text-pulse-amber">expires in {countdown}</span>

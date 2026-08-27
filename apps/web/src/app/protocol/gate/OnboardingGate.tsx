@@ -164,12 +164,23 @@ export function OnboardingGate({
               <span className="self-start rounded-chip bg-pulse-cyan/10 px-2.5 py-1 font-mono text-[10.5px] font-medium text-pulse-cyan">
                 SIGNED IN
               </span>
-              <div className="text-[22px] font-semibold leading-[1.15] tracking-[-.01em]">One form before you&apos;re in the queue</div>
+              <div className="text-[22px] font-semibold leading-[1.15] tracking-[-.01em]">Submit your application</div>
               <div className="max-w-[520px] text-[12.5px] text-ink-4">
-                Tell us who you are — an EMP admin reviews every application by hand before it can send anything.
+                Tell us who you are - an EMP admin will verify your information.
               </div>
               <div className="max-w-[440px] rounded-card border border-white/[.1] bg-surface p-4">
-                <ApplicationForm initialName="" submitLabel="Submit application" onSubmitted={onChange} />
+                <ApplicationForm
+                  initialName=""
+                  initialXHandle=""
+                  submitLabel="Submit application"
+                  onSubmitted={onChange}
+                />
+              </div>
+              <div className="max-w-[440px] rounded-card border border-pulse-amber/30 bg-pulse-amber/5 px-4 py-3.5">
+                <p className="text-[12.5px] leading-[1.5] text-pulse-amber/90">
+                  Please send a DM to @EMP on X from your official X account, confirming your wallet address
+                  and desire to be registered on EMP.
+                </p>
               </div>
             </div>
           )}
@@ -211,8 +222,8 @@ export function OnboardingGate({
               BOUNDARY
             </div>
             <div className="text-[12.5px] text-ink-2">
-              Approval grants you audience <em>counts</em> and delivery <em>rates</em> — never wallets, Telegram
-              handles, or per-user rows. Enforced at the query layer.
+              Approval grants you audience <em>counts</em> and delivery <em>rates</em> - never wallets, Telegram
+              handles, or per-user rows.
             </div>
           </div>
         </div>

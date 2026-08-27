@@ -101,7 +101,12 @@ export function RejectedGate({ me, onChange }: { me: ProtocolMe; onChange: () =>
           <ApplicationSummary me={me} />
 
           <div className="max-w-[440px] rounded-card border border-white/[.1] bg-surface p-4">
-            <ApplicationForm initialName={me.name} submitLabel="Resubmit application" onSubmitted={onChange} />
+            <ApplicationForm
+              initialName={me.name}
+              initialXHandle={me.xHandle ?? ""}
+              submitLabel="Resubmit application"
+              onSubmitted={onChange}
+            />
           </div>
 
           <div className="mt-auto flex items-center gap-3 rounded-card border border-white/[.08] p-[13px_16px]">
@@ -111,8 +116,8 @@ export function RejectedGate({ me, onChange }: { me: ProtocolMe; onChange: () =>
               BOUNDARY
             </div>
             <div className="text-[12.5px] text-ink-2">
-              Approval grants you audience <em>counts</em> and delivery <em>rates</em> — never wallets, Telegram
-              handles, or per-user rows. Enforced at the query layer.
+              Approval grants you audience <em>counts</em> and delivery <em>rates</em> - never wallets, Telegram
+              handles, or per-user rows.
             </div>
           </div>
         </div>

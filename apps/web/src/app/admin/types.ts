@@ -5,6 +5,8 @@ export interface PendingProtocol {
   wallet: string;
   accountType: "EOA" | "SAFE";
   safeAddress: string | null;
+  /** The applicant's X handle, cross-referenced against the out-of-band DM (SPEC §4.2). Null for protocols created before this field existed. */
+  xHandle: string | null;
   createdAt: string;
 }
 

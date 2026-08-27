@@ -48,6 +48,7 @@ describe("listPendingProtocols (integration, real Postgres)", () => {
     status: "PENDING" | "APPROVED" | "REJECTED";
     accountType?: "EOA" | "SAFE";
     safeAddress?: string;
+    xHandle?: string;
     createdAt?: Date;
   }) {
     const protocol = await prisma.protocol.create({
@@ -78,6 +79,23 @@ describe("listPendingProtocols (integration, real Postgres)", () => {
       accountType: "SAFE",
       safeAddress: `0xsafe-address-${runId}`,
     });
+  });
+
+  it("returns the applicant's X handle for cross-referencing, and null for a protocol with none", async () => {
+    await seedProtocol({
+      wallet: `0xhandled-${runId}`,
+      name: `Handled ${runId}`,
+      status: "PENDING",
+      xHandle: `@handled${runId}`,
+    });
+    await seedProtocol({ wallet: `0xno-handle-${runId}`, name: `No handle ${runId}`, status: "PENDING" });
+
+    const rows = (await listPendingProtocols(prisma)).filter((r) => createdIds.includes(r.id));
+
+    const handled = rows.find((r) => r.name === `Handled ${runId}`);
+    const noHandle = rows.find((r) => r.name === `No handle ${runId}`);
+    expect(handled?.xHandle).toBe(`@handled${runId}`);
+    expect(noHandle?.xHandle).toBeNull();
   });
 
   it("excludes non-PENDING protocols", async () => {

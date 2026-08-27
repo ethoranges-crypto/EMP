@@ -202,6 +202,11 @@ model Protocol {
   accountType             AccountType    @default(EOA)
   safeAddress             String?
   name                    String
+  /// The X (Twitter) handle an applicant supplies so an admin can
+  /// cross-reference it against the out-of-band DM verifying the wallet
+  /// (SPEC §4.2). Nullable — protocols created before this field existed
+  /// have none until they resubmit their application.
+  xHandle                 String?
   status                  ProtocolStatus @default(PENDING)
   approvalNotes           String?
   /// Persists the "you're approved" banner's dismissal across logins — a

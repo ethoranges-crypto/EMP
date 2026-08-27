@@ -34,6 +34,7 @@ function ProtocolRow({ protocol, onChange }: { protocol: PendingProtocol; onChan
           {protocol.wallet}
           {protocol.accountType === "SAFE" && protocol.safeAddress ? ` — Safe ${protocol.safeAddress}` : ""}
         </p>
+        <p className="text-xs text-pulse-cyan">{protocol.xHandle || "No X handle provided"}</p>
         <p className="text-xs text-slate-600">Submitted {new Date(protocol.createdAt).toLocaleString()}</p>
       </div>
 

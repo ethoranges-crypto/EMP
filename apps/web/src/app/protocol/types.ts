@@ -6,6 +6,8 @@ export interface ProtocolMe {
   accountType: "EOA" | "SAFE";
   safeAddress: string | null;
   name: string;
+  /** The applicant's own X handle, as submitted. Null for protocols created before this field existed and never resubmitted. */
+  xHandle: string | null;
   status: ProtocolStatus;
   approvalNotes: string | null;
   approvedBannerDismissed: boolean;

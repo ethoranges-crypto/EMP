@@ -6,6 +6,8 @@ export interface PendingProtocolRow {
   wallet: string;
   accountType: AccountType;
   safeAddress: string | null;
+  /** The applicant's X handle, cross-referenced against the out-of-band DM (SPEC §4.2). Null for protocols created before this field existed. */
+  xHandle: string | null;
   createdAt: Date;
 }
 
@@ -24,6 +26,6 @@ export async function listPendingProtocols(prisma: PrismaClient): Promise<Pendin
   return prisma.protocol.findMany({
     where: { status: "PENDING" },
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, wallet: true, accountType: true, safeAddress: true, createdAt: true },
+    select: { id: true, name: true, wallet: true, accountType: true, safeAddress: true, xHandle: true, createdAt: true },
   });
 }

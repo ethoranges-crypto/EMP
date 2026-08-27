@@ -14,11 +14,13 @@ function Field({ label, value }: { label: string; value: string }) {
 
 /**
  * "YOUR APPLICATION" — real fields only. The design's mockup also shows
- * CATEGORY, SITE, and X ACCOUNT — none of those exist on the Protocol
- * model (schema.prisma has wallet, accountType, safeAddress, name, status
- * only), so they're left out rather than invented. No submission
- * timestamp either: Protocol.createdAt is set at first SIWE sign-in, not
- * at application-submit time, so labelling it "Submitted" would be wrong.
+ * CATEGORY and SITE — neither exists on the Protocol model (schema.prisma
+ * has wallet, accountType, safeAddress, name, xHandle, status only), so
+ * they're left out rather than invented. X ACCOUNT, previously flagged
+ * here as missing for the same reason, is now real (Protocol.xHandle) and
+ * shown below. No submission timestamp either: Protocol.createdAt is set
+ * at first SIWE sign-in, not at application-submit time, so labelling it
+ * "Submitted" would be wrong.
  */
 export function ApplicationSummary({ me }: { me: ProtocolMe }) {
   return (
@@ -28,6 +30,7 @@ export function ApplicationSummary({ me }: { me: ProtocolMe }) {
       </div>
       <div className="grid grid-cols-2">
         <Field label="PROTOCOL" value={me.name} />
+        {me.xHandle && <Field label="X ACCOUNT" value={me.xHandle} />}
         <Field label="ACCOUNT TYPE" value={me.accountType === "SAFE" ? "Gnosis Safe" : "EOA"} />
         <Field label="SIGNING WALLET" value={truncateAddress(me.wallet)} />
         {me.safeAddress && <Field label="SAFE ADDRESS" value={truncateAddress(me.safeAddress)} />}

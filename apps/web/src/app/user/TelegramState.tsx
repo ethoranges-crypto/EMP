@@ -38,20 +38,15 @@ function useCountdown(expiresAt: string | undefined): string | null {
  * from the /start command's payload, never from a plain-text message, so
  * "paste the code as a message" (an earlier version of this screen) can
  * never bind anything. The deep-link button is the one real action; the
- * code display alongside it is read-only reference, not an instruction to
- * paste it anywhere.
+ * code itself is never shown — it's carried automatically in the button's
+ * href, so there's nothing for the user to copy or paste.
  *
- * Flagged deviation: the mockup formats its example code as "EMP-7K4Q-92XD"
- * — the real code (createLinkRequest, packages/core) is a plain 12-char
- * base64url string with no EMP-prefix or dash segments, shown as-is rather
- * than reformatted to look like something it isn't. Same for "t.me/emp_
- * signal_bot" — derived from the real deepLink/TELEGRAM_BOT_USERNAME, not
- * hardcoded.
+ * Flagged deviation: "t.me/emp_signal_bot" in the mockup — derived from the
+ * real deepLink/TELEGRAM_BOT_USERNAME, not hardcoded.
  */
 export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => void }) {
   const { address } = useAccount();
   const [requesting, setRequesting] = useState(false);
-  const [copied, setCopied] = useState(false);
   const countdown = useCountdown(me.telegramLinkStatus === "pending" ? me.codeExpiresAt : undefined);
 
   async function requestLink() {
@@ -61,7 +56,6 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
     onChange();
   }
 
-  const code = me.deepLink?.split("?start=")[1];
   const botHandle = me.deepLink ? new URL(me.deepLink).pathname.replace(/^\//, "") : null;
 
   return (
@@ -161,7 +155,7 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
             </>
           )}
 
-          {me.telegramLinkStatus === "pending" && code && me.deepLink && (
+          {me.telegramLinkStatus === "pending" && me.deepLink && (
             <>
               <span className="mb-5 font-mono text-[10px] tracking-[.22em] text-ink-5">YOUR LINK IS READY</span>
               <a
@@ -173,22 +167,9 @@ export function TelegramState({ me, onChange }: { me: UserMe; onChange: () => vo
               >
                 Open bot &amp; link
               </a>
-              <div className="mt-5 rounded-md border border-white/[.1] bg-surface px-6 py-3">
-                <span className="break-all font-mono text-[15px] tracking-[.06em] text-ink-3">{code}</span>
-              </div>
-              <div className="mt-3 flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    void navigator.clipboard.writeText(code);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                  className="rounded-md border border-white/[.12] px-4 py-2 font-mono text-[11px] tracking-[.1em] text-ink-3 transition hover:border-white/30 hover:text-ink-1"
-                >
-                  {copied ? "copied" : "copy code"}
-                </button>
-                {countdown && <span className="font-mono text-[11px] text-pulse-amber">expires in {countdown}</span>}
-              </div>
+              {countdown && (
+                <span className="mt-3 font-mono text-[11px] text-pulse-amber">expires in {countdown}</span>
+              )}
               <div className="mt-12 flex items-center gap-3 rounded-md border border-white/[.08] bg-surface px-5 py-3.5">
                 <div className="flex gap-1.5">
                   <span className="motion-safe:animate-empBreathe h-1.5 w-1.5 rounded-full bg-pulse-cyan" />

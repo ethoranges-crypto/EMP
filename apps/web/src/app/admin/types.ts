@@ -7,7 +7,8 @@ export interface PendingProtocol {
   safeAddress: string | null;
   /** The applicant's X handle, cross-referenced against the out-of-band DM (SPEC §4.2). Null for protocols created before this field existed. */
   xHandle: string | null;
-  createdAt: string;
+  /** When the application was actually submitted — not Protocol.createdAt (first sign-in). Always present: GET /api/admin/protocols only ever returns protocols that have submitted. */
+  submittedAt: string;
 }
 
 /** One row from GET /api/admin/categories. */

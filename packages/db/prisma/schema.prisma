@@ -213,6 +213,13 @@ model Protocol {
   /// client-only dismiss would reappear on every fresh session.
   approvedBannerDismissed Boolean        @default(false)
   createdAt               DateTime       @default(now())
+  /// Set when the application form is actually submitted (POST /api/protocol),
+  /// not at first sign-in like createdAt — the admin queue's "Submitted" label
+  /// must read this, not createdAt. Null until the first submission; reset to
+  /// "now" on every resubmit. Nullable rather than backed by a migration
+  /// default of createdAt: a protocol that has connected+signed in but never
+  /// submitted has no submission time to report, so null is the honest value.
+  submittedAt             DateTime?
 
   campaigns Campaign[]
 

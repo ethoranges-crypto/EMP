@@ -84,7 +84,13 @@ export async function POST(request: Request) {
 
     const updated = await prisma.protocol.update({
       where: { id: accountId },
-      data: { name: trimmedName, xHandle: `@${trimmedHandle}`, status: "PENDING", approvalNotes: null },
+      data: {
+        name: trimmedName,
+        xHandle: `@${trimmedHandle}`,
+        status: "PENDING",
+        approvalNotes: null,
+        submittedAt: new Date(),
+      },
     });
 
     return NextResponse.json({ ok: true, status: updated.status });

@@ -19,6 +19,14 @@ if (!process.env.DATABASE_URL) {
  * generated client not knowing about a field, which only exists once real
  * codegen + a real migration are both involved.
  *
+ * Also covers the submittedAt-vs-createdAt bug this query used to have: the
+ * admin queue's "Submitted" label was reading createdAt (set at first
+ * sign-in), so a protocol that connected today but didn't submit its
+ * application until next week showed the wrong date. submittedAt is set
+ * only by an actual application submit/resubmit — these tests seed it
+ * explicitly (rather than letting it default) so a regression back to
+ * createdAt-based ordering/filtering would fail here.
+ *
  * Deliberately does NOT do a blanket protocol/campaign table wipe (other
  * integration files in this shared-database lane — see
  * vitest.integration.config.ts — seed their own protocol+campaign fixtures
@@ -49,7 +57,8 @@ describe("listPendingProtocols (integration, real Postgres)", () => {
     accountType?: "EOA" | "SAFE";
     safeAddress?: string;
     xHandle?: string;
-    createdAt?: Date;
+    /** Omit to simulate a protocol that has connected/signed in but never submitted an application. */
+    submittedAt?: Date;
   }) {
     const protocol = await prisma.protocol.create({
       data: { accountType: "EOA", ...data },
@@ -59,13 +68,19 @@ describe("listPendingProtocols (integration, real Postgres)", () => {
   }
 
   it("returns accountType and safeAddress for a Safe protocol, alongside a plain EOA one", async () => {
-    await seedProtocol({ wallet: `0xeoa-pending-${runId}`, name: `Acme EOA ${runId}`, status: "PENDING" });
+    await seedProtocol({
+      wallet: `0xeoa-pending-${runId}`,
+      name: `Acme EOA ${runId}`,
+      status: "PENDING",
+      submittedAt: new Date(),
+    });
     await seedProtocol({
       wallet: `0xsafe-owner-${runId}`,
       name: `Acme Safe ${runId}`,
       status: "PENDING",
       accountType: "SAFE",
       safeAddress: `0xsafe-address-${runId}`,
+      submittedAt: new Date(),
     });
 
     const rows = (await listPendingProtocols(prisma)).filter((r) => createdIds.includes(r.id));
@@ -87,8 +102,14 @@ describe("listPendingProtocols (integration, real Postgres)", () => {
       name: `Handled ${runId}`,
       status: "PENDING",
       xHandle: `@handled${runId}`,
+      submittedAt: new Date(),
     });
-    await seedProtocol({ wallet: `0xno-handle-${runId}`, name: `No handle ${runId}`, status: "PENDING" });
+    await seedProtocol({
+      wallet: `0xno-handle-${runId}`,
+      name: `No handle ${runId}`,
+      status: "PENDING",
+      submittedAt: new Date(),
+    });
 
     const rows = (await listPendingProtocols(prisma)).filter((r) => createdIds.includes(r.id));
 
@@ -99,28 +120,73 @@ describe("listPendingProtocols (integration, real Postgres)", () => {
   });
 
   it("excludes non-PENDING protocols", async () => {
-    await seedProtocol({ wallet: `0xapproved-${runId}`, name: `Already approved ${runId}`, status: "APPROVED" });
-    await seedProtocol({ wallet: `0xrejected-${runId}`, name: `Already rejected ${runId}`, status: "REJECTED" });
-    await seedProtocol({ wallet: `0xpending-${runId}`, name: `Still pending ${runId}`, status: "PENDING" });
+    await seedProtocol({
+      wallet: `0xapproved-${runId}`,
+      name: `Already approved ${runId}`,
+      status: "APPROVED",
+      submittedAt: new Date(),
+    });
+    await seedProtocol({
+      wallet: `0xrejected-${runId}`,
+      name: `Already rejected ${runId}`,
+      status: "REJECTED",
+      submittedAt: new Date(),
+    });
+    await seedProtocol({
+      wallet: `0xpending-${runId}`,
+      name: `Still pending ${runId}`,
+      status: "PENDING",
+      submittedAt: new Date(),
+    });
 
     const rows = (await listPendingProtocols(prisma)).filter((r) => createdIds.includes(r.id));
 
     expect(rows.map((r) => r.name)).toEqual([`Still pending ${runId}`]);
   });
 
-  it("orders oldest-first, so the queue is worked in submission order", async () => {
-    const first = await seedProtocol({ wallet: `0xfirst-${runId}`, name: `First ${runId}`, status: "PENDING" });
-    // Force a distinct, later createdAt rather than relying on real-clock
-    // timing between two `create` calls in the same test.
+  it("excludes a PENDING protocol that has connected/signed in but never submitted an application", async () => {
+    // status is PENDING from first sign-in (see the upsert in
+    // /api/auth/siwe/verify), before any application form has been
+    // submitted — this row has nothing yet for an admin to review.
+    await seedProtocol({ wallet: `0xnever-submitted-${runId}`, name: "", status: "PENDING" });
     await seedProtocol({
-      wallet: `0xsecond-${runId}`,
-      name: `Second ${runId}`,
+      wallet: `0xdid-submit-${runId}`,
+      name: `Did submit ${runId}`,
       status: "PENDING",
-      createdAt: new Date(first.createdAt.getTime() + 1000),
+      submittedAt: new Date(),
     });
 
     const rows = (await listPendingProtocols(prisma)).filter((r) => createdIds.includes(r.id));
 
+    expect(rows.map((r) => r.name)).toEqual([`Did submit ${runId}`]);
+  });
+
+  it("reports the actual submission time, not Protocol.createdAt (first sign-in) — and orders oldest-submitted-first", async () => {
+    const signedInLongAgo = new Date("2020-01-01T00:00:00Z");
+    const submittedRecently = new Date("2026-06-01T00:00:00Z");
+    const first = await prisma.protocol.create({
+      data: {
+        wallet: `0xfirst-${runId}`,
+        name: `First ${runId}`,
+        status: "PENDING",
+        accountType: "EOA",
+        createdAt: signedInLongAgo,
+        submittedAt: submittedRecently,
+      },
+    });
+    createdIds.push(first.id);
+    const second = await seedProtocol({
+      wallet: `0xsecond-${runId}`,
+      name: `Second ${runId}`,
+      status: "PENDING",
+      submittedAt: new Date(submittedRecently.getTime() + 1000),
+    });
+    createdIds.push(second.id);
+
+    const rows = (await listPendingProtocols(prisma)).filter((r) => createdIds.includes(r.id));
+
     expect(rows.map((r) => r.name)).toEqual([`First ${runId}`, `Second ${runId}`]);
+    const firstRow = rows.find((r) => r.name === `First ${runId}`);
+    expect(firstRow?.submittedAt.toISOString()).toBe(submittedRecently.toISOString());
   });
 });

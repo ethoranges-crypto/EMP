@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatDateTime } from "../protocol/schedule";
 import type { PendingProtocol } from "./types";
 
 function ProtocolRow({ protocol, onChange }: { protocol: PendingProtocol; onChange: () => void }) {
@@ -35,7 +36,7 @@ function ProtocolRow({ protocol, onChange }: { protocol: PendingProtocol; onChan
           {protocol.accountType === "SAFE" && protocol.safeAddress ? ` — Safe ${protocol.safeAddress}` : ""}
         </p>
         <p className="text-xs text-pulse-cyan">{protocol.xHandle || "No X handle provided"}</p>
-        <p className="text-xs text-slate-600">Submitted {new Date(protocol.createdAt).toLocaleString()}</p>
+        <p className="text-xs text-slate-600">Submitted {formatDateTime(protocol.submittedAt)}</p>
       </div>
 
       {!rejecting && (

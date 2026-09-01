@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-void text-ink-1 font-sans;
+}
+
+/* The browser draws this icon black by default — invisible against our
+   dark background everywhere a datetime-local input appears (schedule
+   pickers in the composer and the payment/reschedule panel). The app has
+   no light surfaces this would need to vary for. */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}

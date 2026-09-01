@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.next/
+.turbo/
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+coverage/
+.pnpm-store/
+tools/local-safe-devnet/cache/
+tools/local-safe-devnet/artifacts/
+dump.rdb

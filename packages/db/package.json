@@ -1,0 +1,25 @@
+{
+  "name": "@emp/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "generate": "tsx scripts/with-root-env.ts prisma generate",
+    "migrate": "tsx scripts/with-root-env.ts prisma migrate dev && tsx src/applyPartialIndexes.ts",
+    "migrate:deploy": "tsx scripts/with-root-env.ts prisma migrate deploy && tsx src/applyPartialIndexes.ts",
+    "seed": "tsx src/seedCategories.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@emp/config": "workspace:*",
+    "@prisma/client": "^5.19.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.15",
+    "prisma": "^5.19.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  }
+}

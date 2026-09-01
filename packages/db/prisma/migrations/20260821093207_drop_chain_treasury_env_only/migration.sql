@@ -1,0 +1,11 @@
+-- Treasury address moves from DB (admin-configurable) to env-only
+-- (`{CHAIN}_TREASURY_ADDRESS`, see @emp/config's chains.ts): it's the single
+-- highest-value config in the system, so changing it now requires
+-- server/deploy access rather than just an admin session. Whatever rows this
+-- table already has are dropped along with it -- there is nothing to
+-- preserve/migrate forward, since the new source of truth is env, not data
+-- an app wrote; every environment that was actually relying on a DB-set
+-- treasury address must set the equivalent env var before this deploys, or
+-- the affected chain simply stops being payable (degrades gracefully per
+-- chains.ts, it does not error).
+DROP TABLE IF EXISTS "chain_treasuries";

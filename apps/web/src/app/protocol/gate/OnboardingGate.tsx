@@ -201,9 +201,9 @@ export function OnboardingGate({
               <div className="flex flex-col gap-2.5 rounded-card border border-pulse-amber/30 bg-pulse-amber/5 p-4">
                 <div className="font-mono text-[9.5px] font-medium tracking-[.12em] text-[#8b8069]">HOW WE VERIFY YOU</div>
                 <div className="text-[12.5px] leading-[1.6] text-[#e0d3b6]">
-                  We verify protocols out-of-band — have your official account confirm this wallet address to
-                  EMP (e.g. via a DM on X). An admin cross-references that against this application; there&apos;s
-                  no automated check here.
+                  We verify protocols manually to protect our users. Have your official X account confirm your
+                  wallet address to EMP via an X DM. An admin will cross-reference this against your
+                  application to confirm the legitimacy of your application.
                 </div>
               </div>
 
@@ -222,8 +222,8 @@ export function OnboardingGate({
               BOUNDARY
             </div>
             <div className="text-[12.5px] text-ink-2">
-              Approval grants you audience <em>counts</em> and delivery <em>rates</em> - never wallets, Telegram
-              handles, or per-user rows.
+              Approval grants you the ability to send messages to our registered users. Audience counts,
+              delivery rates and CTRs are all provided without compromising user privacy.
             </div>
           </div>
         </div>

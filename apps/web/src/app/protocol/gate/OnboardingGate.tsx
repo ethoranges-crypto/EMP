@@ -199,7 +199,9 @@ export function OnboardingGate({
               </div>
 
               <div className="flex flex-col gap-2.5 rounded-card border border-pulse-amber/30 bg-pulse-amber/5 p-4">
-                <div className="font-mono text-[9.5px] font-medium tracking-[.12em] text-[#8b8069]">HOW WE VERIFY YOU</div>
+                <div className="font-mono text-[9.5px] font-medium tracking-[.12em] text-[#8b8069]">
+                  HOW WE VERIFY YOU - DM @EMP_Protocol on X
+                </div>
                 <div className="text-[12.5px] leading-[1.6] text-[#e0d3b6]">
                   We verify protocols manually to protect our users. Have your official X account confirm your
                   wallet address to EMP via an X DM. An admin will cross-reference this against your

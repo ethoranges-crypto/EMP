@@ -48,10 +48,74 @@ if (repoRoot) {
   );
 }
 
+// Prisma's query engine binary (libquery_engine-<platform>.so.node) is
+// loaded via a path Prisma's own runtime constructs by string-concatenating
+// the detected platform at RUNTIME (confirmed by inspecting the actual
+// compiled output: the bundled Prisma runtime code lists every possible
+// libquery_engine-*.so.node filename as a plain string literal, never a
+// single static `require(...)` call). Next's file-tracer (@vercel/nft, what
+// Vercel's own packaging reads to decide what ships in each serverless
+// function) only follows static require/import graphs — it can never
+// correctly infer which one of ~15 possible binary filenames a given route
+// needs, so by default it traces none of them. Confirmed empirically: with
+// this stanza absent, `.next/server/app/api/auth/siwe/verify/route.js.nft.json`
+// lists zero files under node_modules/.prisma or node_modules/.pnpm/*prisma*
+// — the engine simply never gets into the deployed bundle, and Vercel throws
+// "could not locate the Query Engine for runtime rhel-openssl-3.0.x" the
+// moment that route's first query runs. outputFileTracingIncludes forces the
+// engine's whole directory into the routes that actually touch the
+// database, regardless of what nft's static analysis concludes.
+//
+// Two things this deliberately avoids, both of which OOM'd a real build
+// attempt here before landing on this shape:
+//  1. Keying on "/**" (every route) instead of just the DB-touching ones.
+//     Confirmed by grep that no page component imports @emp/db directly —
+//     only route.ts handlers under app/api/** and app/r/[token] do — so
+//     every other route gets nothing to trace here, at zero correctness
+//     cost.
+//  2. A "**" in the MIDDLE of the glob (.pnpm/**/.../.prisma/client) forces
+//     nft to walk every directory in the whole pnpm virtual store — which,
+//     with wagmi/viem/rainbowkit's dependency tree, is thousands of
+//     directories, once per matching route. Anchoring the wildcard to a
+//     single path segment right after .pnpm/ (@prisma+client@*) matches the
+//     same directory without that walk.
+//
+// Paths are computed relative to this app's own directory (where this file
+// lives) rather than hardcoded ("../../...") so this keeps working if the
+// monorepo's nesting depth ever changes; repoRoot is the same
+// pnpm-workspace.yaml-anchored value already computed above for .env
+// loading, so there's no second root-finding mechanism to keep in sync.
+const repoRootRelative = repoRoot ? path.relative(__dirname, repoRoot).split(path.sep).join("/") || "." : undefined;
+const prismaEngineTraceGlobs = repoRootRelative
+  ? [
+      `${repoRootRelative}/node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**`,
+      `${repoRootRelative}/node_modules/.prisma/client/**`,
+    ]
+  : undefined;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ["@emp/config", "@emp/core", "@emp/db"],
+  // Also anchors Next's own trace root at the monorepo root (matches
+  // repoRoot above) rather than letting it infer one — standard guidance for
+  // a pnpm/turbo monorepo deployed to Vercel, and avoids Next's own
+  // "inferred workspace root" warning. Doesn't by itself fix the engine
+  // binary issue above (confirmed: even with tracing correctly reaching
+  // hoisted packages under node_modules/.pnpm, the engine still wasn't
+  // traced — the dynamic-path problem is separate from where the trace
+  // root sits), but it's correct monorepo hygiene regardless.
+  ...(repoRoot ? { outputFileTracingRoot: repoRoot } : {}),
+  ...(prismaEngineTraceGlobs
+    ? {
+        experimental: {
+          outputFileTracingIncludes: {
+            "/api/**": prismaEngineTraceGlobs,
+            "/r/**": prismaEngineTraceGlobs,
+          },
+        },
+      }
+    : {}),
   webpack: (config, { webpack }) => {
     // Workspace packages use explicit .js import extensions (Node ESM
     // convention, needed so tsx/vitest can run their TS source directly).

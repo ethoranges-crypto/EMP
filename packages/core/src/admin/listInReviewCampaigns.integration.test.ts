@@ -74,7 +74,7 @@ describe("listInReviewCampaigns (integration, real Postgres)", () => {
       imageMimeType: "image/png",
     });
     await prisma.cta.create({
-      data: { campaignId: campaign.id, label: "Claim", targetUrl: "https://example.com", redirectToken: `tok-${runId}` },
+      data: { campaignId: campaign.id, label: "Claim", targetUrl: "https://example.com" },
     });
 
     const rows = (await listInReviewCampaigns(prisma)).filter((r) => createdCampaignIds.includes(r.id));

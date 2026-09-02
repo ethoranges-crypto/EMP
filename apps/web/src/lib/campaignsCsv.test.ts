@@ -39,8 +39,8 @@ describe("buildCampaignsCsv — CSV export privacy boundary (SPEC/CLAUDE.md rule
       "Cost (USD)",
       "Delivered Count",
       "Delivered %",
-      "Click Count",
-      "Click %",
+      "Total Clicks",
+      "CTR %",
     ]);
   });
 

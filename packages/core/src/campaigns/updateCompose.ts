@@ -67,16 +67,10 @@ export interface CtaInput {
   targetUrl: string;
 }
 
-export interface SavedCta extends CtaInput {
-  redirectToken: string;
-}
-
 export interface ComposePort {
   /** hasImage reflects whatever the campaign's separate image-upload endpoint has currently saved (see updateCampaignImage.ts) — compose no longer carries the image itself. */
   getCampaignOwnerAndStatus(campaignId: string): Promise<{ protocolId: string; status: string; hasImage: boolean } | null>;
-  saveCompose(params: { campaignId: string; bodyText: string | null; ctas: SavedCta[]; scheduledSendAt: Date | null }): Promise<void>;
-  /** Injectable so tests get deterministic tokens instead of real randomness. */
-  generateRedirectToken(): string;
+  saveCompose(params: { campaignId: string; bodyText: string | null; ctas: CtaInput[]; scheduledSendAt: Date | null }): Promise<void>;
 }
 
 export interface SaveComposeParams {
@@ -139,10 +133,11 @@ function parseScheduledSendAt(raw: string | null): Date | null {
  * SPEC §4.3 step 2 / §8: save a DRAFT campaign's text/CTAs. The image is a
  * separate upload (updateCampaignImage.ts) — this function only reads
  * whether one is currently attached, to pick the right text-length limit.
- * Every CTA URL the protocol enters gets a fresh redirect token here — the
- * caller never picks or sees a raw target URL again without it being
- * wrapped, so whatever eventually gets sent to a recipient always points
- * at /r/:token first (see apps/web's r/[token] route).
+ * CTAs are saved with just their label/target here — the actual /r/:token
+ * redirect wrapping happens per-recipient at send time (apps/worker's
+ * sendCampaignNow mints one ClickToken per recipient per CTA), not at
+ * compose time, since a click needs to be attributable to whoever actually
+ * clicked it (see ClickToken's schema comment).
  *
  * Only the owning protocol may edit, and only in an EDITABLE_CAMPAIGN_STATUSES
  * status (DRAFT, or REJECTED so a protocol can fix and resubmit) — SPEC's
@@ -157,7 +152,7 @@ function parseScheduledSendAt(raw: string | null): Date | null {
  * numbers for a live counter, but this is the check that actually holds —
  * never trust the client's arithmetic alone.
  */
-export async function saveCampaignCompose(port: ComposePort, params: SaveComposeParams): Promise<{ ctas: SavedCta[] }> {
+export async function saveCampaignCompose(port: ComposePort, params: SaveComposeParams): Promise<{ ctas: CtaInput[] }> {
   const campaign = await port.getCampaignOwnerAndStatus(params.campaignId);
   if (!campaign) throw new CampaignNotFoundError(params.campaignId);
   if (campaign.protocolId !== params.protocolId) throw new CampaignNotOwnedError(params.campaignId);
@@ -179,10 +174,9 @@ export async function saveCampaignCompose(port: ComposePort, params: SaveCompose
     assertValidTargetUrl(cta.targetUrl);
   }
 
-  const ctas: SavedCta[] = params.ctas.map((cta) => ({
+  const ctas: CtaInput[] = params.ctas.map((cta) => ({
     label: cta.label.trim(),
     targetUrl: cta.targetUrl,
-    redirectToken: port.generateRedirectToken(),
   }));
 
   await port.saveCompose({

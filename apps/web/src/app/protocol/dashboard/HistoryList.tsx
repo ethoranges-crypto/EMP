@@ -28,9 +28,9 @@ function RowResult({ c }: { c: ProtocolCampaign }) {
   if ((c.status === "COMPLETE" || c.status === "SENDING") && c.metrics) {
     return (
       <div className="text-right">
-        <div className="font-mono text-lg font-medium text-pulse-violet">{c.metrics.clicks.ratePct}%</div>
+        <div className="font-mono text-lg font-medium text-pulse-violet">{c.metrics.clicks.ratePct}% CTR</div>
         <div className="mt-1 font-mono text-[10px] text-ink-5">
-          {c.metrics.delivered.ratePct}% delivered
+          {c.metrics.delivered.ratePct}% delivered · {c.metrics.clicks.total.toLocaleString()} clicks
         </div>
       </div>
     );

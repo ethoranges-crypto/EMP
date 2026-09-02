@@ -46,7 +46,7 @@ const METHOD_COVERAGE: MethodCoverage = {
   getCampaignSnapshotCount: true,
   getCampaignCost: true,
   getDeliveryCounts: true,
-  getCtaClickCounts: true,
+  getClickStats: true,
   getProtocolSummaryCounts: true,
 };
 
@@ -59,6 +59,7 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
   beforeAll(async () => {
     // Fresh slate: this suite owns these tables in the integration DB.
     await prisma.$transaction([
+      prisma.clickToken.deleteMany(),
       prisma.clickEvent.deleteMany(),
       prisma.deliveryEvent.deleteMany(),
       prisma.campaignRecipient.deleteMany(),
@@ -108,15 +109,15 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
     campaignId = campaign.id;
 
     await prisma.campaignCategory.create({ data: { campaignId, categoryId } });
-    await prisma.campaignRecipient.create({
+    const recipient = await prisma.campaignRecipient.create({
       data: { campaignId, chatId: REAL_CHAT_ID, deliveryStatus: "SENT" },
     });
     await prisma.deliveryEvent.create({ data: { campaignId, status: "SENT", count: 1 } });
 
     const cta = await prisma.cta.create({
-      data: { campaignId, label: "Claim", targetUrl: "https://example.com", redirectToken: "tok-integration-1" },
+      data: { campaignId, label: "Claim", targetUrl: "https://example.com" },
     });
-    await prisma.clickEvent.create({ data: { ctaId: cta.id, campaignId } });
+    await prisma.clickEvent.create({ data: { ctaId: cta.id, campaignId, recipientId: recipient.id } });
 
     // The exact row shape the earlier mutation leaked from: a Payment with a real fromAddress.
     await prisma.payment.create({
@@ -151,12 +152,19 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
     completeCampaignId = completeCampaign.id;
     await prisma.deliveryEvent.create({ data: { campaignId: completeCampaignId, status: "SENT", count: 8 } });
     const completeCta = await prisma.cta.create({
-      data: { campaignId: completeCampaignId, label: "Claim", targetUrl: "https://example.com", redirectToken: "tok-integration-2" },
+      data: { campaignId: completeCampaignId, label: "Claim", targetUrl: "https://example.com" },
+    });
+    // The same recipient clicking twice — real proof that a repeat click
+    // raises the raw total but must NOT inflate the unique-clicker count
+    // (the exact bug this schema/query change fixes: a rate computed from
+    // the raw count could exceed 100% for one person clicking repeatedly).
+    const completeRecipient = await prisma.campaignRecipient.create({
+      data: { campaignId: completeCampaignId, chatId: "555000111", deliveryStatus: "SENT" },
     });
     await prisma.clickEvent.createMany({
       data: [
-        { ctaId: completeCta.id, campaignId: completeCampaignId },
-        { ctaId: completeCta.id, campaignId: completeCampaignId },
+        { ctaId: completeCta.id, campaignId: completeCampaignId, recipientId: completeRecipient.id },
+        { ctaId: completeCta.id, campaignId: completeCampaignId, recipientId: completeRecipient.id },
       ],
     });
   });
@@ -237,17 +245,35 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
     assertClean(result, "getDeliveryCounts");
   });
 
-  it("getCtaClickCounts: clean and correct", async () => {
+  it("getClickStats: clean and correct — one recipient's one click is one raw click and one unique clicker", async () => {
     const store = createPrismaProtocolQueryStore(prisma);
-    const result = await store.getCtaClickCounts(campaignId);
-    expect(result).toEqual([{ ctaId: expect.any(String), label: "Claim", count: 1 }]);
-    assertClean(result, "getCtaClickCounts");
+    const result = await store.getClickStats(campaignId);
+    expect(result).toEqual({
+      totalClicks: 1,
+      uniqueClickers: 1,
+      byCta: [{ ctaId: expect.any(String), label: "Claim", count: 1, uniqueClickers: 1 }],
+    });
+    assertClean(result, "getClickStats");
   });
 
-  it("getProtocolSummaryCounts: clean and correct — counts only the COMPLETE campaign, not the SENDING one", async () => {
+  it("getClickStats: the same recipient clicking twice counts as 2 raw clicks but 1 unique clicker — the >100% CTR bug this fixes", async () => {
+    const store = createPrismaProtocolQueryStore(prisma);
+    const result = await store.getClickStats(completeCampaignId);
+    expect(result).toEqual({
+      totalClicks: 2,
+      uniqueClickers: 1,
+      byCta: [{ ctaId: expect.any(String), label: "Claim", count: 2, uniqueClickers: 1 }],
+    });
+    assertClean(result, "getClickStats");
+  });
+
+  it("getProtocolSummaryCounts: clean and correct — counts only the COMPLETE campaign, not the SENDING one, and dedupes its repeat clicker", async () => {
     const store = createPrismaProtocolQueryStore(prisma);
     const result = await store.getProtocolSummaryCounts(protocolId);
-    expect(result).toEqual({ campaignsSent: 1, totalReach: 8, totalAudience: 10, totalClicks: 2 });
+    // totalUniqueClickers is 1, not 2 — the COMPLETE campaign's one recipient
+    // clicked twice (see beforeAll); a raw click count here would wrongly
+    // read 2.
+    expect(result).toEqual({ campaignsSent: 1, totalReach: 8, totalAudience: 10, totalUniqueClickers: 1 });
     assertClean(result, "getProtocolSummaryCounts");
   });
 
@@ -257,7 +283,7 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
     });
     const store = createPrismaProtocolQueryStore(prisma);
     const result = await store.getProtocolSummaryCounts(otherProtocol.id);
-    expect(result).toEqual({ campaignsSent: 0, totalReach: 0, totalAudience: 0, totalClicks: 0 });
+    expect(result).toEqual({ campaignsSent: 0, totalReach: 0, totalAudience: 0, totalUniqueClickers: 0 });
     assertClean(result, "getProtocolSummaryCounts");
   });
 
@@ -267,7 +293,7 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
         "countMessageableUsers",
         "getCampaignCost",
         "getCampaignSnapshotCount",
-        "getCtaClickCounts",
+        "getClickStats",
         "getDeliveryCounts",
         "getProtocolSummaryCounts",
       ].sort(),

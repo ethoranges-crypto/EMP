@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@emp/db";
 import type { ComposePort } from "./updateCompose.js";
 
@@ -19,8 +18,8 @@ export function createPrismaComposeStore(prisma: PrismaClient): ComposePort {
     async saveCompose({ campaignId, bodyText, ctas, scheduledSendAt }) {
       // Replaces the whole CTA set on every save — simplest correct model
       // for a still-DRAFT campaign (nothing has been sent, so there are no
-      // real clicks against the old tokens to preserve; ClickEvent cascades
-      // with its Cta on delete).
+      // real clicks/click tokens against the old CTAs to preserve; both
+      // cascade with their Cta on delete).
       await prisma.$transaction([
         prisma.cta.deleteMany({ where: { campaignId } }),
         prisma.campaign.update({ where: { id: campaignId }, data: { bodyText, scheduledSendAt } }),
@@ -31,16 +30,11 @@ export function createPrismaComposeStore(prisma: PrismaClient): ComposePort {
                   campaignId,
                   label: cta.label,
                   targetUrl: cta.targetUrl,
-                  redirectToken: cta.redirectToken,
                 })),
               }),
             ]
           : []),
       ]);
-    },
-
-    generateRedirectToken() {
-      return randomUUID();
     },
   };
 }

@@ -10,8 +10,8 @@ const HEADERS = [
   "Cost (USD)",
   "Delivered Count",
   "Delivered %",
-  "Click Count",
-  "Click %",
+  "Total Clicks",
+  "CTR %",
 ] as const;
 
 function csvField(value: string): string {

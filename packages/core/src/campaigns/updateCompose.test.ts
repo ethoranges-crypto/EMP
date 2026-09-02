@@ -16,7 +16,6 @@ function createFakePort(overrides: Partial<ComposePort> = {}): ComposePort {
   return {
     getCampaignOwnerAndStatus: async () => ({ protocolId: "protocol-1", status: "DRAFT", hasImage: false }),
     saveCompose: async () => {},
-    generateRedirectToken: () => "tok-fixed",
     ...overrides,
   };
 }
@@ -30,12 +29,10 @@ const baseParams = {
 };
 
 describe("saveCampaignCompose — SPEC §4.3 step 2 / §8", () => {
-  it("saves and wraps every CTA URL with a fresh redirect token", async () => {
+  it("saves every CTA with a trimmed label and its target URL", async () => {
     const port = createFakePort();
     const result = await saveCampaignCompose(port, baseParams);
-    expect(result.ctas).toEqual([
-      { label: "Claim", targetUrl: "https://example.com/claim", redirectToken: "tok-fixed" },
-    ]);
+    expect(result.ctas).toEqual([{ label: "Claim", targetUrl: "https://example.com/claim" }]);
   });
 
   it("refuses a campaign that doesn't exist", async () => {

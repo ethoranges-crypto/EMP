@@ -9,12 +9,14 @@ import { prisma } from "@emp/db";
 export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const cta = await prisma.cta.findUnique({ where: { redirectToken: token } });
-  if (!cta) {
+  const clickToken = await prisma.clickToken.findUnique({ where: { token }, include: { cta: true } });
+  if (!clickToken) {
     return NextResponse.json({ error: "Unknown link" }, { status: 404 });
   }
 
-  await prisma.clickEvent.create({ data: { ctaId: cta.id, campaignId: cta.campaignId } });
+  await prisma.clickEvent.create({
+    data: { ctaId: clickToken.ctaId, campaignId: clickToken.campaignId, recipientId: clickToken.recipientId },
+  });
 
-  return NextResponse.redirect(cta.targetUrl, { status: 302 });
+  return NextResponse.redirect(clickToken.cta.targetUrl, { status: 302 });
 }

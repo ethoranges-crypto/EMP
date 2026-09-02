@@ -311,6 +311,8 @@ model CampaignRecipient {
   attemptedAt    DateTime?
 
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  clickTokens ClickToken[]
+  clickEvents ClickEvent[]
 
   @@index([campaignId])
   @@map("campaign_recipients")
@@ -336,25 +338,65 @@ model Payment {
 }
 
 model Cta {
-  id            String @id @default(cuid())
-  campaignId    String
-  label         String
-  targetUrl     String
-  redirectToken String @unique
+  id         String @id @default(cuid())
+  campaignId String
+  label      String
+  targetUrl  String
 
   campaign    Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   clickEvents ClickEvent[]
+  clickTokens ClickToken[]
 
   @@map("ctas")
 }
 
-model ClickEvent {
-  id         String   @id @default(cuid())
-  ctaId      String
-  campaignId String
-  occurredAt DateTime @default(now())
+/// One row per (recipient, cta) pair, minted at send time — see
+/// apps/worker's sendCampaignNow. This is what makes a click
+/// attributable to a specific recipient: each recipient gets their own
+/// unique /r/:token link for the same underlying CTA, rather than every
+/// recipient sharing one token (the earlier design, which made a
+/// unique-clicker count impossible — a click only ever proved "someone
+/// clicked", never "who"). Only ever read by the redirect route
+/// (apps/web's /r/[token]) to resolve a click back to (cta, recipient);
+/// never exposed to protocol-facing code — see ClickEvent's own comment
+/// and CLAUDE.md rule 1.
+model ClickToken {
+  id          String   @id @default(cuid())
+  campaignId  String
+  ctaId       String
+  recipientId String
+  token       String   @unique
+  createdAt   DateTime @default(now())
 
-  cta Cta @relation(fields: [ctaId], references: [id], onDelete: Cascade)
+  cta       Cta               @relation(fields: [ctaId], references: [id], onDelete: Cascade)
+  recipient CampaignRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([ctaId, recipientId])
+  @@index([campaignId])
+  @@map("click_tokens")
+}
+
+/// INTERNAL ONLY — never queried by protocol-facing code (see the
+/// file-level comment at the top of this schema and
+/// packages/core/src/protocolQueries/prismaAdapter.ts, the one place
+/// permitted to read recipientId here, and only to turn it into a
+/// COUNT(DISTINCT ...) before anything else sees it).
+///
+/// recipientId is nullable rather than backfilled: click events recorded
+/// before this column existed were logged against a token shared by every
+/// recipient of that CTA, so there is no way to know who actually clicked
+/// them — leaving those rows' recipientId null is the honest value, not a
+/// guess. Every click recorded after this migration always has one, since
+/// /r/[token] always resolves through a per-recipient ClickToken now.
+model ClickEvent {
+  id          String   @id @default(cuid())
+  ctaId       String
+  campaignId  String
+  recipientId String?
+  occurredAt  DateTime @default(now())
+
+  cta       Cta                @relation(fields: [ctaId], references: [id], onDelete: Cascade)
+  recipient CampaignRecipient? @relation(fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([campaignId])
   @@index([ctaId])

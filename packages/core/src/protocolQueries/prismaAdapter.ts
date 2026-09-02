@@ -55,12 +55,38 @@ export function createPrismaProtocolQueryStore(prisma: PrismaClient): ProtocolQu
       return counts;
     },
 
-    async getCtaClickCounts(campaignId) {
-      const ctas = await prisma.cta.findMany({
-        where: { campaignId },
-        select: { id: true, label: true, _count: { select: { clickEvents: true } } },
-      });
-      return ctas.map((cta) => ({ ctaId: cta.id, label: cta.label, count: cta._count.clickEvents }));
+    async getClickStats(campaignId) {
+      const [ctas, rawCounts, uniqueRows] = await Promise.all([
+        prisma.cta.findMany({ where: { campaignId }, select: { id: true, label: true } }),
+        prisma.clickEvent.groupBy({ by: ["ctaId"], where: { campaignId }, _count: { _all: true } }),
+        // Grouping by (ctaId, recipientId) yields one row per distinct
+        // clicker-per-CTA — its LENGTH is the unique-clicker count. The
+        // per-recipient identity in these rows never leaves this function;
+        // only the derived counts below are returned, same aggregate-only
+        // guarantee every other method on this adapter gives.
+        prisma.clickEvent.groupBy({
+          by: ["ctaId", "recipientId"],
+          where: { campaignId, recipientId: { not: null } },
+        }),
+      ]);
+
+      const rawCountByCta = new Map(rawCounts.map((r) => [r.ctaId, r._count._all]));
+      const uniqueByCta = new Map<string, number>();
+      const uniqueRecipientsOverall = new Set<string>();
+      for (const row of uniqueRows) {
+        uniqueByCta.set(row.ctaId, (uniqueByCta.get(row.ctaId) ?? 0) + 1);
+        uniqueRecipientsOverall.add(row.recipientId as string);
+      }
+
+      const byCta = ctas.map((cta) => ({
+        ctaId: cta.id,
+        label: cta.label,
+        count: rawCountByCta.get(cta.id) ?? 0,
+        uniqueClickers: uniqueByCta.get(cta.id) ?? 0,
+      }));
+      const totalClicks = byCta.reduce((sum, c) => sum + c.count, 0);
+
+      return { totalClicks, uniqueClickers: uniqueRecipientsOverall.size, byCta };
     },
 
     async getProtocolSummaryCounts(protocolId) {
@@ -69,22 +95,33 @@ export function createPrismaProtocolQueryStore(prisma: PrismaClient): ProtocolQu
         select: { id: true, snapshotCount: true },
       });
       const campaignIds = completeCampaigns.map((c) => c.id);
-      if (campaignIds.length === 0) return { campaignsSent: 0, totalReach: 0, totalAudience: 0, totalClicks: 0 };
+      if (campaignIds.length === 0) return { campaignsSent: 0, totalReach: 0, totalAudience: 0, totalUniqueClickers: 0 };
 
       const totalAudience = completeCampaigns.reduce((sum, c) => sum + (c.snapshotCount ?? 0), 0);
 
-      const [deliveredAgg, totalClicks] = await Promise.all([
+      const [deliveredAgg, uniqueRows] = await Promise.all([
         prisma.deliveryEvent.aggregate({
           where: { campaignId: { in: campaignIds }, status: "SENT" },
           _sum: { count: true },
         }),
-        // ClickEvent carries no user identity (id, ctaId, campaignId, occurredAt
-        // only — see schema.prisma) — a count over it is aggregate-safe by
-        // construction, same as every other method on this adapter.
-        prisma.clickEvent.count({ where: { campaignId: { in: campaignIds } } }),
+        // One row per (campaignId, recipientId) that ever clicked — its
+        // LENGTH is exactly "each campaign's own unique-clicker count,
+        // summed" (a recipient clicking twice within one campaign is one
+        // row; clicking across two campaigns is two rows, correctly two
+        // separate conversions — see this method's doc comment). Never
+        // returns the underlying rows, same as every other aggregate here.
+        prisma.clickEvent.groupBy({
+          by: ["campaignId", "recipientId"],
+          where: { campaignId: { in: campaignIds }, recipientId: { not: null } },
+        }),
       ]);
 
-      return { campaignsSent: campaignIds.length, totalReach: deliveredAgg._sum.count ?? 0, totalAudience, totalClicks };
+      return {
+        campaignsSent: campaignIds.length,
+        totalReach: deliveredAgg._sum.count ?? 0,
+        totalAudience,
+        totalUniqueClickers: uniqueRows.length,
+      };
     },
   };
 }

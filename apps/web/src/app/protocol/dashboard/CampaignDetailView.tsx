@@ -149,7 +149,15 @@ export function CampaignDetailView({ campaignId, onClose }: { campaignId: string
                 <div>
                   <div className="font-mono text-[26px] font-medium leading-none text-pulse-violet">{metrics.clicks.ratePct}%</div>
                   <div className="mt-1.5 text-[12px] text-ink-4">
-                    {metrics.clicks.total.toLocaleString()} click{metrics.clicks.total === 1 ? "" : "s"} of delivered
+                    CTR — {metrics.clicks.uniqueClickers.toLocaleString()} unique clicker{metrics.clicks.uniqueClickers === 1 ? "" : "s"} of{" "}
+                    {metrics.delivered.count.toLocaleString()} delivered
+                  </div>
+                </div>
+                <div className="h-px bg-white/[.08]" />
+                <div>
+                  <div className="font-mono text-[26px] font-medium leading-none text-pulse-amber">{metrics.clicks.total.toLocaleString()}</div>
+                  <div className="mt-1.5 text-[12px] text-ink-4">
+                    Total Clicks — every click event, repeats included
                   </div>
                 </div>
                 {metrics.clicks.byCta.length > 1 && (
@@ -158,7 +166,7 @@ export function CampaignDetailView({ campaignId, onClose }: { campaignId: string
                       <div key={c.ctaId} className="flex items-center justify-between text-[11.5px]">
                         <span className="truncate text-ink-3">{c.label}</span>
                         <span className="shrink-0 font-mono text-ink-4">
-                          {c.count} · {c.ratePct}%
+                          {c.count} clicks · {c.ratePct}% CTR
                         </span>
                       </div>
                     ))}

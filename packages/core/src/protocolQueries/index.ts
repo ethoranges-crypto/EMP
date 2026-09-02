@@ -7,9 +7,13 @@ export interface CampaignMetrics {
   audienceSize: number;
   delivered: { count: number; ratePct: number };
   clicks: {
+    /** Raw total click events, repeats included — "Total Clicks". */
     total: number;
+    /** Distinct recipients who clicked at least once. */
+    uniqueClickers: number;
+    /** CTR: uniqueClickers / delivered — can never exceed 100%, unlike a rate computed from `total`. */
     ratePct: number;
-    byCta: Array<{ ctaId: string; label: string; count: number; ratePct: number }>;
+    byCta: Array<{ ctaId: string; label: string; count: number; uniqueClickers: number; ratePct: number }>;
   };
   spend: { token: string; amount: string } | null;
 }
@@ -47,28 +51,29 @@ export async function getCampaignMetrics(
   port: ProtocolQueryPort,
   campaignId: string,
 ): Promise<CampaignMetrics> {
-  const [audienceSize, cost, deliveryCounts, ctaClicks] = await Promise.all([
+  const [audienceSize, cost, deliveryCounts, clickStats] = await Promise.all([
     port.getCampaignSnapshotCount(campaignId),
     port.getCampaignCost(campaignId),
     port.getDeliveryCounts(campaignId),
-    port.getCtaClickCounts(campaignId),
+    port.getClickStats(campaignId),
   ]);
 
   const delivered = deliveryCounts.SENT;
-  const totalClicks = ctaClicks.reduce((sum, c) => sum + c.count, 0);
 
   return {
     campaignId,
     audienceSize,
     delivered: { count: delivered, ratePct: ratePct(delivered, audienceSize) },
     clicks: {
-      total: totalClicks,
-      ratePct: ratePct(totalClicks, delivered),
-      byCta: ctaClicks.map((c) => ({
+      total: clickStats.totalClicks,
+      uniqueClickers: clickStats.uniqueClickers,
+      ratePct: ratePct(clickStats.uniqueClickers, delivered),
+      byCta: clickStats.byCta.map((c) => ({
         ctaId: c.ctaId,
         label: c.label,
         count: c.count,
-        ratePct: ratePct(c.count, delivered),
+        uniqueClickers: c.uniqueClickers,
+        ratePct: ratePct(c.uniqueClickers, delivered),
       })),
     },
     spend: cost,
@@ -83,11 +88,11 @@ export async function getCampaignMetrics(
  * over-weight a small campaign against a large one).
  */
 export async function getProtocolSummary(port: ProtocolQueryPort, protocolId: string): Promise<ProtocolSummary> {
-  const { campaignsSent, totalReach, totalAudience, totalClicks } = await port.getProtocolSummaryCounts(protocolId);
+  const { campaignsSent, totalReach, totalAudience, totalUniqueClickers } = await port.getProtocolSummaryCounts(protocolId);
   return {
     campaignsSent,
     totalReach,
     avgDeliveredRatePct: ratePct(totalReach, totalAudience),
-    avgClickRatePct: ratePct(totalClicks, totalReach),
+    avgClickRatePct: ratePct(totalUniqueClickers, totalReach),
   };
 }

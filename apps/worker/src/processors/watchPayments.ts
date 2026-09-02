@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Worker } from "bullmq";
 import { getPayableChains, loadEnv } from "@emp/config";
 import { assertTransition } from "@emp/core";
@@ -156,24 +157,19 @@ async function sendCampaignNow(sendQueue: ReturnType<typeof createTelegramSendQu
   });
 
   const env = loadEnv();
-  const ctas = campaign.ctas.map((cta) => ({
-    label: cta.label,
-    targetUrl: cta.targetUrl,
-    redirectUrl: `${env.REDIRECT_BASE_URL}/${cta.redirectToken}`,
-  }));
 
   // Every CTA shares the same REDIRECT_BASE_URL, so if one fails Telegram's
-  // "public HTTPS only" rule they all do — checking once here, for the
-  // whole campaign, avoids enqueueing one doomed job per recipient (each of
+  // "public HTTPS only" rule they all do — checking once here, against a
+  // sample path, avoids enqueueing one doomed job per recipient (each of
   // which would fail identically; see @emp/telegram's sendCampaignMessage,
   // which also checks this defensively per-job). Marks every recipient
   // FAILED up front instead of leaving the campaign looking like it's still
   // sending.
-  const invalidCta = ctas.find((cta) => !isTelegramCompatibleUrl(cta.redirectUrl));
-  if (invalidCta) {
+  const sampleRedirectUrl = `${env.REDIRECT_BASE_URL}/sample-token`;
+  if (campaign.ctas.length > 0 && !isTelegramCompatibleUrl(sampleRedirectUrl)) {
     console.error(
       `[worker] Campaign ${campaignId}: REDIRECT_BASE_URL ("${env.REDIRECT_BASE_URL}") produces a CTA URL ` +
-        `Telegram will reject (e.g. "${invalidCta.redirectUrl}") — it must be a public HTTPS host, not ` +
+        `Telegram will reject (e.g. "${sampleRedirectUrl}") — it must be a public HTTPS host, not ` +
         "localhost/http. Fix the env var and restart the worker before sending another campaign with CTAs; " +
         "this one is now COMPLETE with 0 delivered.",
     );
@@ -190,6 +186,23 @@ async function sendCampaignNow(sendQueue: ReturnType<typeof createTelegramSendQu
     return;
   }
 
+  // One ClickToken per (recipient, CTA) pair, minted here at send time — this
+  // is what makes a click attributable to a specific recipient (see
+  // ClickEvent.recipientId's doc comment in schema.prisma). Never reused
+  // across recipients, unlike the old campaign-wide Cta.redirectToken.
+  const clickTokenRows = campaign.recipients.flatMap((recipient) =>
+    campaign.ctas.map((cta) => ({
+      campaignId,
+      ctaId: cta.id,
+      recipientId: recipient.id,
+      token: randomUUID(),
+    })),
+  );
+  if (clickTokenRows.length > 0) {
+    await prisma.clickToken.createMany({ data: clickTokenRows });
+  }
+  const tokenByRecipientAndCta = new Map(clickTokenRows.map((row) => [`${row.recipientId}:${row.ctaId}`, row.token]));
+
   const jobs: Array<{ name: string; data: TelegramSendJobData }> = campaign.recipients.map((recipient) => ({
     name: "send",
     data: {
@@ -198,7 +211,11 @@ async function sendCampaignNow(sendQueue: ReturnType<typeof createTelegramSendQu
       chatId: recipient.chatId,
       text: campaign.bodyText ?? "",
       imageBase64: campaign.imageData ? Buffer.from(campaign.imageData).toString("base64") : undefined,
-      ctas,
+      ctas: campaign.ctas.map((cta) => ({
+        label: cta.label,
+        targetUrl: cta.targetUrl,
+        redirectUrl: `${env.REDIRECT_BASE_URL}/${tokenByRecipientAndCta.get(`${recipient.id}:${cta.id}`)}`,
+      })),
     },
   }));
 

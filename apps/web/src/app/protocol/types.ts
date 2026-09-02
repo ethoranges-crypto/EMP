@@ -142,9 +142,13 @@ export interface CampaignFullMetrics {
   audienceSize: number;
   delivered: { count: number; ratePct: number };
   clicks: {
+    /** Raw total click events, repeats from the same user included — "Total Clicks". */
     total: number;
+    /** Distinct recipients who clicked at least once. */
+    uniqueClickers: number;
+    /** CTR: uniqueClickers / delivered — never exceeds 100%, unlike a rate computed from `total`. */
     ratePct: number;
-    byCta: Array<{ ctaId: string; label: string; count: number; ratePct: number }>;
+    byCta: Array<{ ctaId: string; label: string; count: number; uniqueClickers: number; ratePct: number }>;
   };
   spend: { token: string; amount: string } | null;
 }

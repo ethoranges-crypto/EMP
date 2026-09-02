@@ -337,6 +337,48 @@ model Payment {
   @@map("payments")
 }
 
+/// Per-chain incremental scan progress for EvmTreasuryWatcher (RPC
+/// rate-limiting fix — see apps/worker/src/processors/watchPayments.ts).
+/// Lets each payment-watch tick fetch only the block range that's new since
+/// the last tick instead of re-scanning a fixed lookback window every time.
+/// One row per payable chain, created lazily on that chain's first tick.
+model ChainScanCursor {
+  chain            String   @id
+  lastScannedBlock BigInt
+  updatedAt        DateTime @updatedAt
+
+  @@map("chain_scan_cursors")
+}
+
+/// Caches on-chain transfers-to-treasury the watcher has already observed,
+/// so a transfer seen in one tick's (small) new-block range stays matchable
+/// against AWAITING payments in later ticks too, without re-fetching it
+/// from the chain — see fetchNewTransfers's doc comment in
+/// evmTreasuryWatcher.ts. Pruned once per tick (pruneObservedTransfers) once
+/// a row is older than any payment window could still need it.
+///
+/// INTERNAL ONLY. fromAddress here is always a protocol's authenticated
+/// payment wallet (SPEC §6), never a user identifier — same privacy tier as
+/// Payment, not a per-user table, but never queried by protocol-facing code
+/// regardless.
+model ObservedTransfer {
+  id          String   @id @default(cuid())
+  chain       String
+  /// TokenSymbol as a free string, not the TokenSymbol enum — this can
+  /// legitimately observe "ETH" (a protocol paying the wrong asset by
+  /// mistake) even though ETH isn't in the accepted-token enum.
+  token       String
+  amount      String
+  fromAddress String
+  txHash      String
+  occurredAt  DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([chain, txHash])
+  @@index([chain, occurredAt])
+  @@map("observed_transfers")
+}
+
 model Cta {
   id         String @id @default(cuid())
   campaignId String

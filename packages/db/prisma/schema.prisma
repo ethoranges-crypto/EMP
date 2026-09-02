@@ -16,7 +16,14 @@
 //     through between the check and the write.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" keeps local dev/CI working on whatever platform runs there;
+  // "rhel-openssl-3.0.x" is the query engine binary Vercel's serverless
+  // Node.js runtime actually needs — without it, prisma generate only ships
+  // the engine for the machine that ran the build, and every DB-backed
+  // route 500s on Vercel with "could not locate the Query Engine for
+  // runtime rhel-openssl-3.0.x" the moment it tries its first query.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {

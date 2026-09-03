@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@emp/db";
+import { EVERYTHING_CATEGORY_NAME } from "@emp/config";
 import { createPrismaProtocolQueryStore } from "./prismaAdapter.js";
 import type { ProtocolQueryPort } from "./ports.js";
 import { assertNoForbiddenKeys, assertNoLeakedValues } from "../testUtils/privacyAssertions.js";
@@ -221,6 +222,28 @@ describe("prismaAdapter — protocol-facing privacy boundary (integration, real 
     expect(result).toBe(1); // still just REAL_WALLET's user — the paused one doesn't count
     assertNoForbiddenKeys(result, "$.countMessageableUsers");
     assertNoLeakedValues(result, [...SECRETS, pausedWallet], "$.countMessageableUsers");
+  });
+
+  it("countMessageableUsers: a user who selected 'Everything' matches a specific-category targeting too — Everything means the same thing on both sides of the match", async () => {
+    const everythingCategory = await prisma.category.create({ data: { name: EVERYTHING_CATEGORY_NAME, active: true } });
+    const everythingWallet = "0xeverythinguser00000000000000000000000001";
+    const everythingUser = await prisma.user.create({ data: { primaryWallet: everythingWallet, accountType: "EOA" } });
+    await prisma.telegramLink.create({
+      data: { userId: everythingUser.id, chatId: "333222111", status: "VERIFIED", verifiedAt: new Date() },
+    });
+    // Only ever ONE UserInterest row for this user — Everything, not every
+    // real category individually. The query layer is what expands this,
+    // not extra rows written on save.
+    await prisma.userInterest.create({ data: { userId: everythingUser.id, categoryId: everythingCategory.id } });
+
+    const store = createPrismaProtocolQueryStore(prisma);
+    // Targeting Yields specifically — NOT Everything — must now count BOTH
+    // REAL_WALLET's user (picked Yields) and this new user (picked
+    // Everything), previously it counted only the former.
+    const result = await store.countMessageableUsers({ categoryIds: [categoryId], includeAll: false });
+    expect(result).toBe(2);
+    assertNoForbiddenKeys(result, "$.countMessageableUsers");
+    assertNoLeakedValues(result, [...SECRETS, everythingWallet], "$.countMessageableUsers");
   });
 
   it("getCampaignSnapshotCount: clean and correct", async () => {

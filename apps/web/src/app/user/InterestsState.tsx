@@ -15,20 +15,6 @@ interface Category {
 }
 
 /**
- * Everything's own `selected` is a derived value (are all other categories
- * currently selected?), never an independently-stored bit — this is what
- * makes a pre-existing "every individual category happens to be selected,
- * but Everything itself wasn't" state (possible from before this UX existed)
- * render Everything as selected immediately on load, not just after the
- * next toggle.
- */
-function deriveEverything(categories: Category[]): Category[] {
-  const others = categories.filter((c) => c.name !== EVERYTHING_CATEGORY_NAME);
-  const allSelected = others.length > 0 && others.every((c) => c.selected);
-  return categories.map((c) => (c.name === EVERYTHING_CATEGORY_NAME ? { ...c, selected: allSelected } : c));
-}
-
-/**
  * State 2 — interest multi-select. Kept the pulse-violet selected-state
  * (not the mockup's cyan) — it's the existing, already-approved distinction
  * from users picking their own interests vs. the cyan protocol side uses
@@ -58,46 +44,30 @@ export function InterestsState({
   useEffect(() => {
     fetch("/api/user/interests")
       .then((r) => r.json())
-      .then((data: { categories: Category[] }) => setCategories(deriveEverything(data.categories)))
+      .then((data: { categories: Category[] }) => setCategories(data.categories))
       .catch(() => setCategories([]));
   }, []);
 
   /**
    * "Everything" is a real category row like any other (its own id, its own
-   * UserInterest row when selected) — the backend has no special-case for a
-   * user's own selection of it (only a *protocol's* targeting filter treats
-   * Everything specially, via CategoryFilter.includeAll — see
-   * @emp/core/protocolQueries). So the only way a user's pick of Everything
-   * actually reaches every category-specific campaign too is if selecting
-   * it really does select every other category's row alongside it — hence
-   * toggling Everything here flips every chip's real `selected` state, not
-   * just its own. This also means the existing selected-chip styling below
-   * needs no separate "implied by Everything" visual state: once Everything
-   * is on, every other chip's `c.selected` is genuinely true, so it renders
-   * with the exact same highlight a manually-picked category gets — the
-   * most honest representation of what's actually being saved.
+   * UserInterest row when selected) and toggling it here is a plain
+   * independent flip, same as any other chip — it writes exactly ONE
+   * UserInterest row, not one per real category.
    *
-   * Everything's own highlighted state is derived (are all other categories
-   * currently selected?), the standard "select-all checkbox" pattern:
-   * picking any individual category off manually drops Everything's own
-   * highlight immediately, since the set is no longer literally everything;
-   * re-selecting the last missing one restores it.
+   * This used to also flip every other chip's `selected` state, because the
+   * query layer treated a user's own Everything pick as an inert tag: a
+   * protocol targeting a specific category (e.g. Yields) would not match an
+   * Everything-only user unless their UserInterest rows literally included
+   * every category. That's no longer true — countMessageableUsers and
+   * listMessageableChatIds (packages/core/src/protocolQueries) now expand a
+   * user's Everything row to match any specific-category targeting at query
+   * time, so writing 6 rows here to get the same effect became redundant
+   * (and wasteful — 6x the rows for no behavioral gain). The dashed border +
+   * "ALL {n}" badge below still communicates that selecting Everything
+   * covers every category; it just does so as a single stored row now.
    */
   function toggle(id: string) {
-    setCategories((prev) => {
-      if (!prev) return prev;
-      const clicked = prev.find((c) => c.id === id);
-      if (!clicked) return prev;
-
-      if (clicked.name === EVERYTHING_CATEGORY_NAME) {
-        const others = prev.filter((c) => c.name !== EVERYTHING_CATEGORY_NAME);
-        const allSelected = others.length > 0 && others.every((c) => c.selected);
-        const turnOn = !allSelected;
-        return prev.map((c) => ({ ...c, selected: turnOn }));
-      }
-
-      return deriveEverything(prev.map((c) => (c.id === id ? { ...c, selected: !c.selected } : c)));
-    });
+    setCategories((prev) => prev?.map((c) => (c.id === id ? { ...c, selected: !c.selected } : c)) ?? null);
   }
 
   async function save() {

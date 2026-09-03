@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@emp/db";
+import { buildMessageableUsersWhere } from "../protocolQueries/messageableUsersWhere.js";
 import type { CategoryFilter } from "../protocolQueries/ports.js";
 import type { SnapshotPort } from "./snapshot.js";
 
@@ -10,19 +11,13 @@ import type { SnapshotPort } from "./snapshot.js";
 export function createPrismaSnapshotStore(prisma: PrismaClient): SnapshotPort {
   return {
     async listMessageableChatIds(filter: CategoryFilter) {
+      // buildMessageableUsersWhere is the single source of truth for who
+      // matches a CategoryFilter — shared with countMessageableUsers so the
+      // preview a protocol sees and the actual recipient set locked at
+      // approval can never drift apart. See its own doc comment for the
+      // Everything-matches-any-category semantics this encodes.
       const users = await prisma.user.findMany({
-        where: {
-          telegramLinks: { some: { status: "VERIFIED" } },
-          // Same paused exclusion as countMessageableUsers — this is the
-          // function that actually decides who gets a campaign_recipients
-          // row (and gets messaged), so a paused user opting out here is
-          // the real, functional part of that guarantee, not just the
-          // count shown to protocols beforehand.
-          paused: false,
-          ...(filter.includeAll
-            ? {}
-            : { interests: { some: { categoryId: { in: filter.categoryIds } } } }),
-        },
+        where: await buildMessageableUsersWhere(prisma, filter),
         select: { telegramLinks: { where: { status: "VERIFIED" }, select: { chatId: true }, take: 1 } },
       });
       return users.flatMap((u) => u.telegramLinks.map((l) => l.chatId));

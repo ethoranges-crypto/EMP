@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@emp/db";
+import { buildMessageableUsersWhere } from "./messageableUsersWhere.js";
 import type { CategoryFilter, ProtocolQueryPort } from "./ports.js";
 
 /**
@@ -11,18 +12,7 @@ import type { CategoryFilter, ProtocolQueryPort } from "./ports.js";
 export function createPrismaProtocolQueryStore(prisma: PrismaClient): ProtocolQueryPort {
   return {
     async countMessageableUsers(filter: CategoryFilter) {
-      return prisma.user.count({
-        where: {
-          telegramLinks: { some: { status: "VERIFIED" } },
-          // Paused is a self-service opt-out (SPEC "Signal paused") — a
-          // paused user must never count toward an audience a protocol
-          // pays for, even though their Telegram link is still verified.
-          paused: false,
-          ...(filter.includeAll
-            ? {}
-            : { interests: { some: { categoryId: { in: filter.categoryIds } } } }),
-        },
-      });
+      return prisma.user.count({ where: await buildMessageableUsersWhere(prisma, filter) });
     },
 
     async getCampaignSnapshotCount(campaignId) {

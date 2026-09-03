@@ -1,12 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { Worker } from "bullmq";
 import { getPayableChains, loadEnv, type PayableChainConfig } from "@emp/config";
 import { assertTransition } from "@emp/core";
 import { EvmTreasuryWatcher, matchPayment, type ObservedTransfer, type PendingPayment, type TokenSymbol } from "@emp/payments";
 import { isTelegramCompatibleUrl } from "@emp/telegram";
 import { prisma } from "@emp/db";
-import { getRedisConnection } from "../redis.js";
-import { PAYMENT_WATCH_QUEUE_NAME } from "../queues/paymentWatchQueue.js";
 import { createTelegramSendQueue, type TelegramSendJobData } from "../queues/telegramSendQueue.js";
 import { maybeCompleteCampaign } from "../campaignCompletion.js";
 
@@ -30,18 +27,48 @@ import { maybeCompleteCampaign } from "../campaignCompletion.js";
  * call volume per tick.
  *
  * The same tick also scans for SCHEDULED campaigns whose time has arrived
- * (fireDueScheduledCampaigns) — a plain DB query rather than a BullMQ
- * delayed job, so it self-heals on a worker restart with no job-id
- * bookkeeping: a scheduled send that was due while the worker was down just
- * gets picked up by the next tick once it's back, same as a payment that
- * cleared while the worker was offline already does.
+ * (fireDueScheduledCampaigns) — a plain DB query, same reasoning as this
+ * whole loop not being a BullMQ job: it self-heals on a worker restart with
+ * no job-id bookkeeping, a scheduled send (or a payment) that was due while
+ * the worker was down just gets picked up by the next tick once it's back.
+ *
+ * Redis-cost note: this used to be a BullMQ repeatable job on its own
+ * queue. A repeatable job's next-due timestamp is normally more than 10
+ * seconds away (this tick's own interval is on the order of a minute), and
+ * BullMQ hard-caps how long a worker's blocking Redis wait can sit ahead of
+ * a *known future* job to 10 seconds (see bullmq's Worker.getBlockTimeout —
+ * avoids blocking a connection too long across reconnects) — so a
+ * repeatable job scheduled 90s out forces the worker to re-poll Redis every
+ * ~10s while waiting for it, no matter how idle-friendly its other options
+ * are tuned. That 10s-forced-repoll, running 24/7 regardless of whether
+ * there's ever a payment to check, was a large, unavoidable-by-config
+ * chunk of the account's Redis command volume. This scan has no need for
+ * BullMQ's distributed job semantics at all — there's no payload to
+ * distribute, no per-item retry, nothing another process needs to pick up
+ * if this one is busy — it's a single periodic DB+RPC scan already
+ * self-healing via the ChainScanCursor/scheduledSendAt DB state, so a plain
+ * `setInterval` in this same long-running process is both simpler and
+ * removes an entire BullMQ Worker's Redis footprint (blocking connection,
+ * main loop, and stalled-job timer) — see startPaymentWatchLoop below.
+ *
+ * Caveat if apps/worker is ever run as more than one replica: BullMQ's
+ * queue-level repeat guaranteed only one consumer fired each tick no matter
+ * how many worker processes were running; a plain setInterval runs
+ * independently in every replica, so N replicas would mean N times the RPC
+ * calls and DB scans per tick. Fine for a single-instance deployment (the
+ * current one); revisit if this app is ever horizontally scaled.
  */
-export function createPaymentWatchWorker(): Worker {
+export function startPaymentWatchLoop(pollIntervalMs: number): { stop: () => Promise<void> } {
   const sendQueue = createTelegramSendQueue();
+  let running = false;
 
-  return new Worker(
-    PAYMENT_WATCH_QUEUE_NAME,
-    async () => {
+  async function tick(): Promise<void> {
+    // A previous tick still in flight (a slow RPC provider, a DB hiccup)
+    // skips this one rather than overlapping — the same effective
+    // single-at-a-time guarantee BullMQ's default concurrency of 1 gave us.
+    if (running) return;
+    running = true;
+    try {
       const env = loadEnv();
 
       for (const chain of getPayableChains()) {
@@ -57,9 +84,28 @@ export function createPaymentWatchWorker(): Worker {
 
       await pruneObservedTransfers(env.PAYMENT_WINDOW_MINUTES);
       await fireDueScheduledCampaigns(sendQueue);
+    } catch (err) {
+      // BullMQ used to catch a processor throw for us (just failing that
+      // one job); a plain setInterval callback has no such safety net, so
+      // an unexpected error here (env failing to (re)load, a DB outage
+      // during the prune/schedule calls above) must be caught explicitly —
+      // otherwise it would surface as an unhandled rejection and could take
+      // the whole process down, silently ending every future tick with it.
+      console.error("[worker] payment-watch tick failed unexpectedly:", err);
+    } finally {
+      running = false;
+    }
+  }
+
+  void tick(); // run immediately on start, not after the first interval — self-heals right away, same as BullMQ's repeatable job effectively did on a fresh boot
+  const timer = setInterval(() => void tick(), pollIntervalMs);
+
+  return {
+    stop: async () => {
+      clearInterval(timer);
+      await sendQueue.close();
     },
-    { connection: getRedisConnection() },
-  );
+  };
 }
 
 /**

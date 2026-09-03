@@ -70,6 +70,23 @@ export function createTelegramSendWorker(): Worker<TelegramSendJobData> {
       // Global throttle — SPEC §8's ~30 msg/s. Per-chat throttling isn't
       // needed here since each chat_id only ever appears once per campaign.
       limiter: { max: 30, duration: 1000 },
+      // Redis-cost tuning (this is a low-volume queue — a handful of
+      // campaigns, not a constant stream): BullMQ's defaults (drainDelay 5s,
+      // stalledInterval 30s) mean a genuinely empty queue still issues ~2
+      // Redis commands every 5s (a job-fetch attempt + a blocking wait) plus
+      // a stalled-job check every 30s, 24/7. Raising both cuts that idle
+      // chatter by ~60x and ~10x respectively. Neither hurts reactivity to a
+      // real send: adding a job to an empty queue wakes an idle worker's
+      // blocking wait immediately (it's a blocking pop on that same key,
+      // not a poll-and-sleep loop) regardless of drainDelay — this setting
+      // only controls how often the worker needlessly re-blocks while
+      // there's truly nothing to do. A 5-minute stalled-check interval
+      // means a genuinely crashed worker's in-flight job is detected and
+      // requeued within 5 minutes worst case instead of 30 seconds — an
+      // acceptable trade here given 5 retry attempts with exponential
+      // backoff already exist for transient failures.
+      drainDelay: 300, // seconds
+      stalledInterval: 300_000, // ms
     },
   );
 

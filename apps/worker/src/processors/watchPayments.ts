@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { Worker } from "bullmq";
-import { getPayableChains, loadEnv } from "@emp/config";
+import { getPayableChains, loadEnv, type PayableChainConfig } from "@emp/config";
 import { assertTransition } from "@emp/core";
-import { EvmTreasuryWatcher, type PendingPayment } from "@emp/payments";
+import { EvmTreasuryWatcher, matchPayment, type ObservedTransfer, type PendingPayment, type TokenSymbol } from "@emp/payments";
 import { isTelegramCompatibleUrl } from "@emp/telegram";
 import { prisma } from "@emp/db";
 import { getRedisConnection } from "../redis.js";
@@ -21,6 +21,14 @@ import { maybeCompleteCampaign } from "../campaignCompletion.js";
  * SCHEDULED if the protocol chose a future send time (scheduled sending).
  * Fully automated — no manual admin verification step.
  *
+ * RPC volume note: this fetches on-chain activity exactly ONCE per chain
+ * per tick (checkChainPayments), then matches every AWAITING payment on
+ * that chain against the same in-memory result via the pure matchPayment
+ * function — not once per payment, which is what made this expensive
+ * enough to hit a free RPC tier's rate limit with even a single campaign.
+ * See evmTreasuryWatcher.ts's EvmTreasuryWatcher doc comment for expected
+ * call volume per tick.
+ *
  * The same tick also scans for SCHEDULED campaigns whose time has arrived
  * (fireDueScheduledCampaigns) — a plain DB query rather than a BullMQ
  * delayed job, so it self-heals on a worker restart with no job-id
@@ -34,53 +42,136 @@ export function createPaymentWatchWorker(): Worker {
   return new Worker(
     PAYMENT_WATCH_QUEUE_NAME,
     async () => {
+      const env = loadEnv();
+
       for (const chain of getPayableChains()) {
-        const watcher = new EvmTreasuryWatcher({ chain });
-        const awaiting = await prisma.payment.findMany({
-          where: { chain: chain.key, status: "AWAITING" },
-        });
-
-        for (const payment of awaiting) {
-          const pending: PendingPayment = {
-            id: payment.id,
-            campaignId: payment.campaignId,
-            chainKey: payment.chain,
-            token: payment.token,
-            expectedAmount: payment.amount.toString(),
-            fromAddress: payment.fromAddress,
-            windowExpiresAt: payment.windowExpiresAt,
-          };
-
-          // One payment's failure (a bad campaign/CTA config, a transient
-          // RPC hiccup on the checkPayment call, whatever) must never take
-          // down the rest of this tick — every other AWAITING payment on
-          // this chain still deserves a check.
-          try {
-            const result = await watcher.checkPayment(pending);
-            if (result.status === "AWAITING") continue;
-
-            await prisma.payment.update({
-              where: { id: payment.id },
-              data: {
-                status: result.status,
-                txHash: result.txHash,
-                verifiedAt: result.status === "VERIFIED" ? new Date() : undefined,
-              },
-            });
-
-            if (result.status === "VERIFIED") {
-              await sendCampaignOnPaymentVerified(sendQueue, payment.campaignId);
-            }
-          } catch (err) {
-            console.error(`[worker] payment-watch tick failed for payment ${payment.id} (campaign ${payment.campaignId}):`, err);
-          }
+        // One chain's RPC failure (provider outage, still-exhausted rate
+        // limit despite the retry/backoff below, whatever) must never take
+        // down every other chain's tick.
+        try {
+          await checkChainPayments(sendQueue, chain, env);
+        } catch (err) {
+          console.error(`[worker] payment-watch tick failed for chain ${chain.key}:`, err);
         }
       }
 
+      await pruneObservedTransfers(env.PAYMENT_WINDOW_MINUTES);
       await fireDueScheduledCampaigns(sendQueue);
     },
     { connection: getRedisConnection() },
   );
+}
+
+/**
+ * One chain's worth of a tick: advance that chain's scan cursor by fetching
+ * only the new-since-last-time block range (EvmTreasuryWatcher.fetchNewTransfers),
+ * cache whatever it finds (ObservedTransfer — a transfer observed in one
+ * tick's small delta range must stay matchable in later ticks too, since an
+ * AWAITING payment can still be open when the matching transfer arrives, or
+ * arrive several ticks after it), then match every AWAITING payment on this
+ * chain against the full cached window with the pure matchPayment function
+ * — zero extra RPC calls per payment.
+ */
+async function checkChainPayments(
+  sendQueue: ReturnType<typeof createTelegramSendQueue>,
+  chain: PayableChainConfig,
+  env: ReturnType<typeof loadEnv>,
+): Promise<void> {
+  const cursor = await prisma.chainScanCursor.findUnique({ where: { chain: chain.key } });
+  const watcher = new EvmTreasuryWatcher({
+    chain,
+    maxLookbackBlocks: BigInt(env.PAYMENT_WATCH_MAX_LOOKBACK_BLOCKS),
+    scanNativeTransfers: env.PAYMENT_WATCH_SCAN_NATIVE_TRANSFERS,
+    rpcRetryCount: env.PAYMENT_WATCH_RPC_RETRY_COUNT,
+    rpcRetryDelayMs: env.PAYMENT_WATCH_RPC_RETRY_DELAY_MS,
+  });
+
+  const { transfers, scannedToBlock } = await watcher.fetchNewTransfers(cursor?.lastScannedBlock ?? null);
+
+  if (transfers.length > 0) {
+    await prisma.observedTransfer.createMany({
+      data: transfers.map((t) => ({
+        chain: chain.key,
+        token: t.token,
+        amount: t.amount,
+        fromAddress: t.fromAddress,
+        txHash: t.txHash,
+        occurredAt: t.occurredAt,
+      })),
+      // A transfer already cached from an earlier tick's overlap (fromBlock
+      // is exclusive of the last scanned block, so overlap shouldn't
+      // normally happen, but a chain reorg or a retried tick could still
+      // hand back the same txHash twice) is a no-op, not an error.
+      skipDuplicates: true,
+    });
+  }
+
+  await prisma.chainScanCursor.upsert({
+    where: { chain: chain.key },
+    create: { chain: chain.key, lastScannedBlock: scannedToBlock },
+    update: { lastScannedBlock: scannedToBlock },
+  });
+
+  const awaiting = await prisma.payment.findMany({ where: { chain: chain.key, status: "AWAITING" } });
+  if (awaiting.length === 0) return;
+
+  const cached = await prisma.observedTransfer.findMany({ where: { chain: chain.key } });
+  const observed: ObservedTransfer[] = cached.map((c) => ({
+    token: c.token as TokenSymbol,
+    amount: c.amount,
+    fromAddress: c.fromAddress,
+    txHash: c.txHash,
+    occurredAt: c.occurredAt,
+  }));
+
+  for (const payment of awaiting) {
+    const pending: PendingPayment = {
+      id: payment.id,
+      campaignId: payment.campaignId,
+      chainKey: payment.chain,
+      token: payment.token,
+      expectedAmount: payment.amount.toString(),
+      fromAddress: payment.fromAddress,
+      windowExpiresAt: payment.windowExpiresAt,
+    };
+
+    // One payment's failure (a bad campaign/CTA config, whatever) must
+    // never take down the rest of this chain's payments this tick.
+    try {
+      const result = matchPayment({ expected: pending, observed, alreadyConsumedTxHashes: new Set() });
+      if (result.status === "AWAITING") continue;
+
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: result.status,
+          txHash: result.txHash,
+          verifiedAt: result.status === "VERIFIED" ? new Date() : undefined,
+        },
+      });
+
+      if (result.status === "VERIFIED") {
+        await sendCampaignOnPaymentVerified(sendQueue, payment.campaignId);
+      }
+    } catch (err) {
+      console.error(`[worker] payment-watch tick failed for payment ${payment.id} (campaign ${payment.campaignId}):`, err);
+    }
+  }
+}
+
+/**
+ * A cached ObservedTransfer only needs to outlive every payment window it
+ * could still match — once it's older than the longest a payment can stay
+ * AWAITING (PAYMENT_WINDOW_MINUTES) plus a small buffer for tick-interval
+ * slack, no currently-open or future payment can legitimately match it
+ * (matchPayment rejects anything past a payment's own windowExpiresAt, and
+ * a payment's window always starts at-or-after its own createdAt, which is
+ * always >= now). Runs once per tick, across all chains — cheap, indexed on
+ * (chain, occurredAt).
+ */
+async function pruneObservedTransfers(paymentWindowMinutes: number): Promise<void> {
+  const cutoff = new Date(Date.now() - (paymentWindowMinutes + 10) * 60_000);
+  await prisma.observedTransfer.deleteMany({ where: { occurredAt: { lt: cutoff } } });
 }
 
 async function sendCampaignOnPaymentVerified(

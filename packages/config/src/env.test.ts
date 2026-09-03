@@ -32,4 +32,38 @@ describe("loadEnv", () => {
 
     expect(() => loadEnv(brokenEnv)).toThrow(/SESSION_SECRET/);
   });
+
+  it("defaults the payment-watch RPC tuning to free-tier-friendly values when unset", () => {
+    resetEnvCacheForTests();
+    const env = loadEnv(VALID_ENV);
+    expect(env.PAYMENT_WATCH_POLL_SECONDS).toBe(90);
+    expect(env.PAYMENT_WATCH_MAX_LOOKBACK_BLOCKS).toBe(300);
+    expect(env.PAYMENT_WATCH_RPC_RETRY_COUNT).toBe(5);
+    expect(env.PAYMENT_WATCH_RPC_RETRY_DELAY_MS).toBe(1000);
+    expect(env.PAYMENT_WATCH_SCAN_NATIVE_TRANSFERS).toBe(false);
+  });
+
+  it("only the literal string 'true' turns on native-transfer scanning — not any other non-empty value", () => {
+    resetEnvCacheForTests();
+    expect(loadEnv({ ...VALID_ENV, PAYMENT_WATCH_SCAN_NATIVE_TRANSFERS: "true" }).PAYMENT_WATCH_SCAN_NATIVE_TRANSFERS).toBe(true);
+    resetEnvCacheForTests();
+    expect(loadEnv({ ...VALID_ENV, PAYMENT_WATCH_SCAN_NATIVE_TRANSFERS: "false" }).PAYMENT_WATCH_SCAN_NATIVE_TRANSFERS).toBe(false);
+    resetEnvCacheForTests();
+    expect(loadEnv({ ...VALID_ENV, PAYMENT_WATCH_SCAN_NATIVE_TRANSFERS: "yes" }).PAYMENT_WATCH_SCAN_NATIVE_TRANSFERS).toBe(false);
+  });
+
+  it("respects explicit payment-watch overrides", () => {
+    resetEnvCacheForTests();
+    const env = loadEnv({
+      ...VALID_ENV,
+      PAYMENT_WATCH_POLL_SECONDS: "45",
+      PAYMENT_WATCH_MAX_LOOKBACK_BLOCKS: "150",
+      PAYMENT_WATCH_RPC_RETRY_COUNT: "8",
+      PAYMENT_WATCH_RPC_RETRY_DELAY_MS: "2000",
+    });
+    expect(env.PAYMENT_WATCH_POLL_SECONDS).toBe(45);
+    expect(env.PAYMENT_WATCH_MAX_LOOKBACK_BLOCKS).toBe(150);
+    expect(env.PAYMENT_WATCH_RPC_RETRY_COUNT).toBe(8);
+    expect(env.PAYMENT_WATCH_RPC_RETRY_DELAY_MS).toBe(2000);
+  });
 });

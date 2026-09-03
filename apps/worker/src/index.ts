@@ -17,7 +17,7 @@ const sendWorker = createTelegramSendWorker();
 const paymentWatchWorker = createPaymentWatchWorker();
 const paymentWatchQueue = createPaymentWatchQueue();
 
-await schedulePaymentWatchTick(paymentWatchQueue);
+await schedulePaymentWatchTick(paymentWatchQueue, env.PAYMENT_WATCH_POLL_SECONDS * 1000);
 
 // eslint-disable-next-line no-console
 console.log("EMP worker started: telegram-send + payment-watch");

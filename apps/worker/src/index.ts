@@ -1,7 +1,6 @@
 import { getChains, getPayableChains, loadEnv, loadRootEnvFile } from "@emp/config";
 import { checkRedirectBaseUrlReachable, isLikelyDevTunnelUrl, isTelegramCompatibleUrl } from "@emp/telegram";
-import { createPaymentWatchQueue, schedulePaymentWatchTick } from "./queues/paymentWatchQueue.js";
-import { createPaymentWatchWorker } from "./processors/watchPayments.js";
+import { startPaymentWatchLoop } from "./processors/watchPayments.js";
 import { createTelegramSendWorker } from "./processors/sendMessage.js";
 
 // Explicit and first, same as packages/db's CLI scripts and apps/web's
@@ -14,10 +13,9 @@ loadRootEnvFile();
 const env = loadEnv(); // fail fast on missing/malformed config before starting any worker
 
 const sendWorker = createTelegramSendWorker();
-const paymentWatchWorker = createPaymentWatchWorker();
-const paymentWatchQueue = createPaymentWatchQueue();
-
-await schedulePaymentWatchTick(paymentWatchQueue, env.PAYMENT_WATCH_POLL_SECONDS * 1000);
+// A plain interval, not a BullMQ queue/worker — see startPaymentWatchLoop's
+// doc comment for why (Redis command volume).
+const paymentWatchLoop = startPaymentWatchLoop(env.PAYMENT_WATCH_POLL_SECONDS * 1000);
 
 // eslint-disable-next-line no-console
 console.log("EMP worker started: telegram-send + payment-watch");
@@ -86,15 +84,16 @@ if (!isTelegramCompatibleUrl(`${env.REDIRECT_BASE_URL}/sample-token`)) {
   }
 }
 
-for (const worker of [sendWorker, paymentWatchWorker]) {
-  worker.on("failed", (job, err) => {
-    // eslint-disable-next-line no-console
-    console.error(`Job ${job?.id} failed:`, err);
-  });
-}
+// Only sendWorker is a BullMQ Worker now — the payment-watch loop logs its
+// own failures directly (see startPaymentWatchLoop) rather than emitting a
+// 'failed' job event.
+sendWorker.on("failed", (job, err) => {
+  // eslint-disable-next-line no-console
+  console.error(`Job ${job?.id} failed:`, err);
+});
 
 async function shutdown(): Promise<void> {
-  await Promise.all([sendWorker.close(), paymentWatchWorker.close(), paymentWatchQueue.close()]);
+  await Promise.all([sendWorker.close(), paymentWatchLoop.stop()]);
   process.exit(0);
 }
 

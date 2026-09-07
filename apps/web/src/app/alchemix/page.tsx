@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Spectral, Montserrat } from "next/font/google";
@@ -28,6 +29,23 @@ const montserrat = Montserrat({
 
 const ACCENT = "#F5C09A";
 const INK = "rgba(212,212,212,.86)";
+
+// Every section (header, hero grid, footer) shares this same centered
+// column so the page reads as one consistent layout at any width, instead
+// of a full-bleed header sitting above a narrower centered hero. 1280 sits
+// inside the requested ~1200–1400px range and matches the original design's
+// proportions closely, so nothing needs re-tuning below that width — above
+// it, margin:auto is what stops content hugging the viewport edges on a
+// wide desktop monitor. Horizontal padding is fluid (clamp) rather than a
+// fixed 56px so it doesn't look cramped on a narrow window or oversized once
+// the max-width has already taken over on a huge one.
+const CONTAINER: CSSProperties = {
+  maxWidth: 1280,
+  margin: "0 auto",
+  width: "100%",
+  paddingLeft: "clamp(20px, 4vw, 56px)",
+  paddingRight: "clamp(20px, 4vw, 56px)",
+};
 
 function Bullet({ lead, rest }: { lead?: string; rest: string }) {
   return (
@@ -142,11 +160,12 @@ export default function AlchemixLandingPage() {
 
       <header
         style={{
+          ...CONTAINER,
           position: "relative",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "26px 56px 0 56px",
+          paddingTop: 26,
           flexWrap: "wrap",
           gap: 16,
         }}
@@ -184,23 +203,36 @@ export default function AlchemixLandingPage() {
       </header>
 
       <div
+        className="alx-hero-grid"
         style={{
+          ...CONTAINER,
           position: "relative",
           flex: 1,
           display: "grid",
-          gridTemplateColumns: "1fr 424px",
           gap: 56,
+          // alignItems centers content *within* a track; with a single
+          // auto-sized row that's a no-op — alignContent is what centers
+          // the row itself within this flex:1 area's full height, so the
+          // hero block doesn't sit glued to the top with a big gap below it
+          // on a tall viewport. Both set for the usual reasons (alignItems
+          // still matters if either column's content is taller than the
+          // other).
           alignItems: "center",
-          padding: "40px 56px",
+          alignContent: "center",
+          paddingTop: "clamp(24px, 5vh, 48px)",
+          paddingBottom: "clamp(24px, 5vh, 48px)",
         }}
       >
-        <section style={{ display: "flex", flexDirection: "column", gap: 26 }}>
+        <section style={{ display: "flex", flexDirection: "column", gap: 26, minWidth: 0 }}>
           <h1
             style={{
               margin: 0,
               fontFamily: "var(--alx-font-spectral), Georgia, serif",
               fontWeight: 400,
-              fontSize: 52,
+              // Fluid instead of a fixed 52px — scales down smoothly on
+              // narrower viewports rather than either overflowing or
+              // jumping abruptly at a breakpoint.
+              fontSize: "clamp(32px, 4.2vw, 52px)",
               lineHeight: 1.1,
               letterSpacing: "-.015em",
               color: "#FFFFFF",
@@ -296,19 +328,42 @@ export default function AlchemixLandingPage() {
           position: "relative",
           borderTop: "1px solid rgba(212,212,212,.12)",
           background: "rgba(5,52,78,.35)",
-          padding: "20px 56px",
-          display: "flex",
-          alignItems: "center",
-          gap: 44,
-          flexWrap: "wrap",
         }}
       >
-        <Step n="01" text="Sign in with any wallet" />
-        <Step n="02" text="Choose your interests" />
-        <Step n="03" text="Link the EMP bot with a one-time code" />
+        {/* The bar above spans full width on purpose (border/background) —
+            only the actual content is inset to the shared container so the
+            steps line up under the hero/header, not the bar itself. */}
+        <div
+          style={{
+            ...CONTAINER,
+            paddingTop: 20,
+            paddingBottom: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: 44,
+            flexWrap: "wrap",
+          }}
+        >
+          <Step n="01" text="Sign in with any wallet" />
+          <Step n="02" text="Choose your interests" />
+          <Step n="03" text="Link the EMP bot with a one-time code" />
+        </div>
       </footer>
 
-      <style>{`@keyframes alxPulse { 0%,100% { opacity: .35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.35); } }`}</style>
+      <style>{`
+        @keyframes alxPulse { 0%,100% { opacity: .35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.35); } }
+        /* Two columns (hero text + fixed-width alert card) is a desktop/
+           laptop layout — below 900px there isn't room for both without
+           squeezing the alert card illegibly, so it drops to one column
+           and the card sits full-width beneath the hero text. Grid-only
+           (can't express as a clamped inline style, unlike everything
+           else on this page), which is why this is the one real CSS rule
+           here rather than a plain style prop. */
+        .alx-hero-grid { grid-template-columns: 1fr 424px; }
+        @media (max-width: 900px) {
+          .alx-hero-grid { grid-template-columns: 1fr; }
+        }
+      `}</style>
     </main>
   );
 }

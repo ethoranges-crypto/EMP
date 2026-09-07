@@ -98,8 +98,8 @@ function Step({ n, text }: { n: string; text: string }) {
  * headline/subhead/bullets, no "~40 seconds" CTA caption, reordered +
  * reworded footer steps (now matching the real /user flow order: connect →
  * interests → Telegram), no footer legal line, reworded alert-preview cards
- * and privacy line. See AlchemixMarks.tsx: the logo/mark are placeholders,
- * not Alchemix's real brand assets (never supplied to this session).
+ * and privacy line. Logo/mark (AlchemixMarks.tsx) are Alchemix's real brand
+ * SVGs, transcribed verbatim from the source supplied for this page.
  */
 export default function AlchemixLandingPage() {
   return (

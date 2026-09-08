@@ -5,6 +5,7 @@ import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useSiweSignIn } from "@/lib/useSiwe";
 import { SAFE_CHAIN_OPTIONS, chainKeyForChainId } from "@/lib/wagmiConfig";
+import { EmpMark } from "../EmpMark";
 import { UserHeader } from "./UserHeader";
 import { StepRow } from "./StepRow";
 import { OnboardingFooter } from "./OnboardingFooter";
@@ -70,7 +71,7 @@ export function ConnectState({ onSignedIn }: { onSignedIn: () => void }) {
             className="flex h-16 w-16 items-center justify-center rounded-full border border-pulse-cyan/55"
             style={{ background: "radial-gradient(circle, rgba(53,230,242,.16), transparent 70%)" }}
           >
-            <div className="h-3 w-3 rounded-full bg-pulse-cyan shadow-glow" />
+            <EmpMark size={28} />
           </div>
         </div>
 

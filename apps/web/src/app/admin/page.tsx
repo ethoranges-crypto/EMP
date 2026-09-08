@@ -9,6 +9,7 @@ import { CategoriesPanel } from "./CategoriesPanel";
 import { CampaignsModerationPanel } from "./CampaignsModerationPanel";
 import { PlatformSettingsPanel } from "./PlatformSettingsPanel";
 import { TreasurySettingsPanel } from "./TreasurySettingsPanel";
+import { EmpMark } from "../EmpMark";
 import type { AdminCategory, InReviewCampaign, PendingProtocol, PlatformSettings, TreasuryChainRow } from "./types";
 
 type ListStatus = "loading" | "signed-out" | "loaded" | "error";
@@ -95,7 +96,10 @@ export default function AdminPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-6 py-16">
       <header className="flex flex-col items-center gap-2 text-center">
-        <h1 className="text-3xl font-bold text-pulse-cyan">EMP Admin</h1>
+        <div className="flex items-center gap-2.5">
+          <EmpMark size={30} />
+          <h1 className="text-3xl font-bold text-pulse-cyan">EMP Admin</h1>
+        </div>
         <p className="text-sm text-slate-400">Protocol approvals. Access is restricted to ADMIN_WALLETS.</p>
       </header>
 

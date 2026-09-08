@@ -175,6 +175,13 @@ export default function AlchemixLandingPage() {
           <div style={{ width: 1, height: 22, background: "rgba(212,212,212,.25)" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontFamily: "var(--alx-font-spectral), Georgia, serif", fontSize: 15, color: "rgba(212,212,212,.5)" }}>×</span>
+            <svg width="16" height="16" viewBox="0 0 64 64" role="img" aria-label="EMP" style={{ display: "block" }}>
+              <g fill="none" stroke="#35e6f2" strokeWidth={7} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 38 H20" opacity={0.34} />
+                <path d="M40 38 H53" opacity={0.34} />
+                <path d="M20 38 L26.5 14 L33.5 50 L40 38" />
+              </g>
+            </svg>
             <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: ".22em", color: "#F5F5F5" }}>EMP</span>
           </div>
         </div>

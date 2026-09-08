@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PAYMENT_TOKENS, type PaymentToken } from "@emp/config/paymentTokens";
 import { StepRail, type Step } from "../StepRail";
 import { BackButton } from "../BackButton";
+import { EmpLockup } from "../../EmpMark";
 import { LiveRail } from "./LiveRail";
 import { statusChipClass } from "../dashboard/statusStyle";
 import { ScheduleControl } from "../ScheduleControl";
@@ -231,7 +232,7 @@ export function PaymentScreen({
   return (
     <main className="flex h-screen flex-col overflow-hidden bg-void text-[13px] text-ink-1">
       <header className="flex h-[57px] shrink-0 items-center gap-4 border-b border-white/[.07] px-[26px]">
-        <div className="font-mono text-[13px] font-bold tracking-[.06em]">EMP</div>
+        <EmpLockup />
         <BackButton onClick={onClose} />
         <div className="h-4 w-px bg-white/[.12]" />
         <div className="min-w-0 max-w-[280px] flex-1 truncate text-[13px] text-ink-2">{detail.title}</div>

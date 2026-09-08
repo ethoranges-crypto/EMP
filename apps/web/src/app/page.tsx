@@ -156,7 +156,7 @@ export default function HomePage() {
                   boxShadow: "0 0 60px rgba(53,230,242,.25)",
                 }}
               >
-                <span className="font-mono text-[12px] tracking-[.24em] text-pulse-cyan">EMP</span>
+                <EmpMark size={48} />
               </div>
             </div>
             <div className="absolute bottom-8 right-0 flex max-w-[280px] flex-col items-end gap-1.5">

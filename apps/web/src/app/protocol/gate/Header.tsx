@@ -2,6 +2,7 @@
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { truncateAddress } from "@/lib/address";
+import { EmpLockup } from "../../EmpMark";
 
 /**
  * Same top-bar shape as the dashboard's header, minus the actions a
@@ -15,7 +16,7 @@ import { truncateAddress } from "@/lib/address";
 export function Header() {
   return (
     <header className="flex h-[57px] shrink-0 items-center gap-4 border-b border-white/[.07] px-[26px]">
-      <div className="font-mono text-[13px] font-bold tracking-[.06em]">EMP</div>
+      <EmpLockup />
       <div className="h-4 w-px bg-white/[.12]" />
       <div className="text-[13px] text-ink-2">Protocol access</div>
       <div className="ml-auto">

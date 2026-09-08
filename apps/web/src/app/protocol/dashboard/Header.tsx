@@ -1,6 +1,7 @@
 "use client";
 
 import { truncateAddress } from "@/lib/address";
+import { EmpLockup } from "../../EmpMark";
 import type { ProtocolMe } from "../types";
 
 /**
@@ -14,7 +15,7 @@ import type { ProtocolMe } from "../types";
 export function Header({ me, onNewCampaign }: { me: ProtocolMe; onNewCampaign: () => void }) {
   return (
     <header className="flex h-[57px] shrink-0 items-center gap-4 border-b border-white/[.07] px-[26px]">
-      <div className="font-mono text-[13px] font-bold tracking-[.06em]">EMP</div>
+      <EmpLockup />
       <div className="h-4 w-px bg-white/[.12]" />
       <div className="text-[13px] text-ink-2">{me.name || "Your protocol"}</div>
       <span className="rounded-chip bg-pulse-green/10 px-[9px] py-[4px] font-mono text-[10.5px] font-medium text-pulse-green">

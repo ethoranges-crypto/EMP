@@ -246,7 +246,7 @@ export default function AlchemixLandingPage() {
               maxWidth: 640,
             }}
           >
-            Stay up to date with the latest opportunities
+            Stay up to date with the latest Alchemix opportunities
           </h1>
 
           <p style={{ margin: 0, maxWidth: 560, fontSize: 16, lineHeight: 1.62, color: INK }}>
@@ -255,6 +255,7 @@ export default function AlchemixLandingPage() {
           </p>
 
           <ul style={{ margin: "4px 0 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 13, maxWidth: 560 }}>
+            <Bullet rest="Get the latest protocol updates before anyone else." />
             <Bullet lead="Private by design" rest="Your wallet address and your Telegram handle are never linked or passed over to any protocol." />
             <Bullet rest="Only receive messages about topics you want to hear about." />
             <Bullet lead="Sign in with Ethereum" rest="Prove you're onchain with any wallet, no need to use your main or active wallets." />

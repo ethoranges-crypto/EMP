@@ -135,28 +135,39 @@ export default function HomePage() {
           </div>
 
           <div className="relative flex items-center justify-center">
-            <div className="relative flex h-[400px] w-[400px] items-center justify-center">
-              <div className="motion-safe:animate-empPulse absolute h-[400px] w-[400px] rounded-full border border-pulse-cyan/50" />
+            <div className="relative flex h-[400px] w-full items-center justify-center">
+              {/* Horizontal signal trace — echoes the mark's own baseline
+                  ticks and carries the "transmitting" idea out across the
+                  otherwise-empty width, instead of leaving the mark
+                  floating alone in the column. */}
+              <div className="pointer-events-none absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-transparent via-pulse-cyan/25 to-transparent" />
+
+              {/* Two broadcast rings, single-hue and synced so they read
+                  as one signal radiating out from the mark — not a
+                  separate sonar effect competing with it. */}
+              <div className="motion-safe:animate-empPulse absolute h-[340px] w-[340px] rounded-full border border-pulse-cyan/25" />
               <div
-                className="motion-safe:animate-empPulse absolute h-[400px] w-[400px] rounded-full border border-pulse-cyan/40"
-                style={{ animationDelay: "1.1s" }}
+                className="motion-safe:animate-empPulse absolute h-[340px] w-[340px] rounded-full border border-pulse-cyan/18"
+                style={{ animationDelay: "1.3s" }}
               />
+
+              {/* Tight glow pulse hugging the badge — this is the mark's
+                  own pulse (the animated focal point), synced to the same
+                  beat as the outer rings above. */}
+              <div className="motion-safe:animate-empPulse absolute h-[160px] w-[160px] rounded-full bg-pulse-cyan/15 blur-xl" />
               <div
-                className="motion-safe:animate-empPulse absolute h-[400px] w-[400px] rounded-full border border-pulse-violet/35"
-                style={{ animationDelay: "2.2s" }}
+                className="motion-safe:animate-empPulse absolute h-[160px] w-[160px] rounded-full bg-pulse-cyan/15 blur-xl"
+                style={{ animationDelay: "1.3s" }}
               />
+
               <div
-                className="motion-safe:animate-empPulse absolute h-[400px] w-[400px] rounded-full border border-pulse-cyan/20"
-                style={{ animationDelay: "3.3s" }}
-              />
-              <div
-                className="relative flex h-[118px] w-[118px] items-center justify-center rounded-full border border-pulse-cyan/55"
+                className="relative flex h-[132px] w-[132px] items-center justify-center rounded-full border border-pulse-cyan/60"
                 style={{
-                  background: "radial-gradient(circle, rgba(53,230,242,.22), rgba(6,8,10,.9) 70%)",
-                  boxShadow: "0 0 60px rgba(53,230,242,.25)",
+                  background: "radial-gradient(circle, rgba(53,230,242,.24), rgba(6,8,10,.92) 70%)",
+                  boxShadow: "0 0 70px rgba(53,230,242,.3)",
                 }}
               >
-                <EmpMark size={48} />
+                <EmpMark size={56} />
               </div>
             </div>
             <div className="absolute bottom-8 right-0 flex max-w-[280px] flex-col items-end gap-1.5">
